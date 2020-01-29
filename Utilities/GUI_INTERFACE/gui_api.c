@@ -3093,7 +3093,9 @@ static USBPD_StatusTypeDef Manage_FreeText(uint8_t PortNum, uint8_t *pPayload, u
   */
 void TRACER_EMB_WakeUpProcess(void)
 {
+#if defined(_TRACE) 
   USBPD_DPM_TraceWakeUp();
+#endif
 }
 
 #if defined(_SNK) || defined(_DRP)
