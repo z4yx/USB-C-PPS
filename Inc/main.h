@@ -77,7 +77,7 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN Private defines */
-
+#define DBG_UART huart3
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
