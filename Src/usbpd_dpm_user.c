@@ -803,7 +803,7 @@ USBPD_StatusTypeDef USBPD_DPM_RequestMessageRequest(uint8_t PortNum, uint8_t Ind
   pdo.d32 = DPM_Ports[PortNum].DPM_ListOfRcvSRCPDO[(IndexSrcPDO - 1)];
   voltage = RequestedVoltage;
   allowablepower = (puser->DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits * RequestedVoltage) / 1000;
-  printf("USBPD_DPM_SNK_EvaluateCapabilities PDO %#x\r\n", pdo.d32);
+  printf("USBPD_DPM_RequestMessageRequest PDO %#x\r\n", pdo.d32);
 
   if (USBPD_TRUE == USBPD_DPM_SNK_EvaluateMatchWithSRCPDO(PortNum, pdo.d32, &voltage, &allowablepower))
   {

@@ -1489,6 +1489,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
   }
   else
   {
+    printf("eval fail\r\n");
     return(1); /* error */
   }
 
@@ -1528,6 +1529,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
     }
 #endif /* USBPD_REV30_SUPPORT && _UNCHUNKED_SUPPORT */
 
+    printf("FIXED RDO\r\n");
     if ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel] & USBPD_PDO_TYPE_Msk) == USBPD_PDO_TYPE_FIXED)
     {
       if( USBPD_OK == USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition, voltage))
