@@ -22,10 +22,6 @@
 #include "usbpd_dpm_user.h"
 /* USER CODE BEGIN Includes */
 #include "stm32g0xx.h"
-#if defined(_GUI_INTERFACE)
-#include "gui_api.h"
-#include "usbpd_gui_memmap.h"
-#endif /* _GUI_INTERFACE */
 #include "string.h"
 #if defined(_DEBUG_TRACE)
 #include "usbpd_trace.h"
@@ -144,11 +140,6 @@ USBPD_DiscoveryIdentity_TypeDef sIdentity[USBPD_PORT_COUNT];
 uint16_t Remote_CurrentSVID[USBPD_PORT_COUNT];
 uint16_t Remote_SVID_Mode[USBPD_PORT_COUNT];
 
-#if defined(_GUI_INTERFACE)
-USBPD_DPStatus_TypeDef sDP_Status[USBPD_PORT_COUNT];
-USBPD_DPConfig_TypeDef sDP_Config[USBPD_PORT_COUNT];
-#endif /* _GUI_INTERFACE */
-extern GUI_SAVE_INFO                 DPM_GUI_SaveInfo;
 /* USER CODE END Private_variables */
 
 /* Private functions ---------------------------------------------------------*/
@@ -356,9 +347,7 @@ static void USBPD_VDM_InformModeEnter(uint8_t PortNum, USBPD_SOPType_TypeDef SOP
   */
 void USBPD_VDM_FillDPStatus(uint8_t PortNum, USBPD_DPStatus_TypeDef *pDP_Status)
 {
-#if defined(_GUI_INTERFACE)
-  memcpy(&sDP_Status[PortNum], pDP_Status, sizeof(USBPD_DPStatus_TypeDef));
-#endif /* _GUI_INTERFACE */
+
 }
 
 /**
@@ -369,9 +358,7 @@ void USBPD_VDM_FillDPStatus(uint8_t PortNum, USBPD_DPStatus_TypeDef *pDP_Status)
   */
 void USBPD_VDM_FillDPConfig(uint8_t PortNum, USBPD_DPConfig_TypeDef *pDP_Config)
 {
-#if defined(_GUI_INTERFACE)
-  memcpy(&sDP_Config[PortNum], pDP_Config, sizeof(USBPD_DPConfig_TypeDef));
-#endif /* _GUI_INTERFACE */
+
 }
 
 /**
@@ -396,23 +383,13 @@ static void USBPD_VDM_SendSpecific(uint8_t PortNum, USBPD_SOPType_TypeDef SOPTyp
     case SVDM_DP_STATUS :
       {
         VDM_USER_DEBUG_TRACE(PortNum, "USBPD_VDM_SendSpecific(DP_STATUS)");
-#if defined(_GUI_INTERFACE)
-        *pVDO = sDP_Status[PortNum].d32;
-        *pNbData = 1;
-#else
         *pVDO = 0;
         *pNbData = 0;
-#endif /* _GUI_INTERFACE */
       }
       break;
     case SVDM_DP_CONFIG :
       {
         VDM_USER_DEBUG_TRACE(PortNum, "USBPD_VDM_SendSpecific(DP_CONFIG)");
-
-#if defined(_GUI_INTERFACE)
-        *pVDO = sDP_Config[PortNum].d32;
-#else
-#endif /* _GUI_INTERFACE */
       }
       break;
     default :

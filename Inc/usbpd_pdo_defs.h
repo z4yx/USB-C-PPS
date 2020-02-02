@@ -25,9 +25,6 @@
 #endif 
 
 /* Includes ------------------------------------------------------------------*/
-#if defined(_GUI_INTERFACE)
-#include "usbpd_gui_memmap.h"
-#endif /* _GUI_INTERFACE */
 
 /* Define   ------------------------------------------------------------------*/
 /* Exported typedef ----------------------------------------------------------*/
@@ -63,10 +60,9 @@ typedef struct
 /* Request 5V */
 #define USBPD_BOARD_REQUESTED_VOLTAGE_MV       5000
 #define USBPD_BOARD_MIN_VOLTAGE_MV             5000
-#define USBPD_BOARD_MAX_VOLTAGE_MV             5000
+#define USBPD_BOARD_MAX_VOLTAGE_MV             20000
 
 /* Max current */
-#define USBPD_CORE_PDO_SRC_FIXED_MAX_CURRENT 3
 #define USBPD_CORE_PDO_SNK_FIXED_MAX_CURRENT 1500
 
 /* Definitions of nb of PDO and APDO for each port */

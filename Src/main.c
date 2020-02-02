@@ -136,11 +136,6 @@ int main(void)
     while(1);
   }
 
-#if defined(_GUI_INTERFACE)
-  /* Initialize GUI before retrieving PDO from RAM */
-  GUI_Init(BSP_GetHWBoardVersionName, BSP_GetPDTypeName, HW_IF_PWR_GetVoltage, HW_IF_PWR_GetCurrent);
-#endif /* _GUI_INTERFACE */
-
   /* Initialise the DPM application */
   if (USBPD_OK != USBPD_DPM_UserInit())
   {

@@ -42,9 +42,6 @@ extern "C" {
 #include "demo_disco.h"
 #include "stm32g071b_discovery.h"
 #include "stm32g071b_discovery_pwrmon.h"
-#ifdef _GUI_INTERFACE
-#include "gui_api.h"
-#endif
 
 #include "stdio.h"
 #include "string.h"

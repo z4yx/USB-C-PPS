@@ -40,7 +40,6 @@ $(wildcard Src/*.c) \
 $(wildcard Drivers/BSP/Components/ina230/*.c) \
 $(wildcard Drivers/BSP/Components/ssd1315/*.c) \
 $(wildcard Drivers/BSP/STM32G071B-Discovery/*.c) \
-$(wildcard Utilities/GUI_INTERFACE/*.c) \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_gpio.c \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_adc.c \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_adc_ex.c \
@@ -131,7 +130,6 @@ C_DEFS =  \
 -DUSBPD_PORT_COUNT=1 \
 -D_SNK \
 -DUSBPDCORE_LIB_PD3_FULL \
--D_GUI_INTERFACE \
 -D_RTOS \
 -DUSE_FULL_LL_DRIVER \
 -DUSE_HAL_DRIVER \

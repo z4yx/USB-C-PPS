@@ -177,11 +177,6 @@ static uint8_t indexAPDO = 0;
 static DEMO_MENU next_menu;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
 
-#if defined(_TRACE) || defined(_GUI_INTERFACE)
-osMessageQDef(DemoTRACE, 1, uint16_t);
-extern osMessageQId TraceQueueId;
-#endif /* _TRACE || _GUI_INTERFACE */
-
 /*
  * Definition of control message
  */
@@ -1563,12 +1558,6 @@ static void Display_menu_version()
 
   /* Display the version of firmware */
   sprintf((char *)str_version, "w26.5 C");
-#if defined(_GUI_INTERFACE)
-  sprintf((char *)str_version,"%s GUI", str_version);
-#endif
-#if defined(_TRACE)
-  sprintf((char *)str_version,"%s TRACE", str_version);
-#endif
   BSP_LCD_SetFont(&Font8);
   BSP_LCD_DisplayStringAtLine(7,  (uint8_t *)str_version);
 }

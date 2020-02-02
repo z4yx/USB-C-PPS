@@ -28,12 +28,6 @@
 #include "usbpd_pdo_defs.h"
 #include "usbpd_devices_conf.h"
 #include "usbpd_core.h"
-#if defined (_TRACE)
-#include "usbpd_trace.h"
-#endif /* _TRACE */
-#if defined(_GUI_INTERFACE)
-#include "gui_api.h"
-#endif /* _GUI_INTERFACE */
 /* USER CODE BEGIN Include */
 #include "string.h"
 #include <stdio.h>
@@ -75,11 +69,7 @@
   * @{
   */
 
-#ifdef _TRACE
-#define POWER_IF_TRACE(_PORT_,_MSG_,_SIZE_) USBPD_TRACE_Add(USBPD_TRACE_DEBUG,_PORT_,0,(uint8_t *)_MSG_, _SIZE_);
-#else
 #define POWER_IF_TRACE(_PORT_,_MSG_,_SIZE_)
-#endif
 #define _PWR_UPDATE_VOLTAGE_MIN(_PDO_VOLT_, _SNK_VOLT_) \
             if ((_PDO_VOLT_) < (_SNK_VOLT_)) \
             { \
@@ -104,7 +94,6 @@
               /* Update min POWER */ \
               (_SNK_POWER_) = (_PDO_POWER_); \
             }
-#if defined(_GUI_INTERFACE)
 #define _PWR_CHECK_VOLTAGE_MIN(_PDO_VOLT_, _SNK_VOLT_) \
             /* Update min voltage */ \
             (_SNK_VOLT_) = (_PDO_VOLT_);
@@ -117,32 +106,6 @@
 #define _PWR_CHECK_POWER_MAX(_PDO_POWER_, _SNK_POWER_) \
             /* Update min POWER */ \
             (_SNK_POWER_) = (_PDO_POWER_);
-#else
-#define _PWR_CHECK_VOLTAGE_MIN(_PDO_VOLT_, _SNK_VOLT_) \
-          if ((_PDO_VOLT_) != (_SNK_VOLT_)) \
-          { \
-            /* Disalignment between PDO and DPM_SNKRequestedPower structure */ \
-            _status = USBPD_ERROR; \
-          }
-#define _PWR_CHECK_VOLTAGE_MAX(_PDO_VOLT_, _SNK_VOLT_) \
-          if ((_PDO_VOLT_) != (_SNK_VOLT_)) \
-          { \
-            /* Disalignment between PDO and DPM_SNKRequestedPower structure */ \
-            _status = USBPD_ERROR; \
-          }
-#define _PWR_CHECK_CURRENT_MAX(_PDO_CURRENT_, _SNK_CURRENT_) \
-          if ((_PDO_CURRENT_) != (_SNK_CURRENT_)) \
-          { \
-            /* Disalignment between PDO and DPM_SNKRequestedPower structure */ \
-            _status = USBPD_ERROR; \
-          }
-#define _PWR_CHECK_POWER_MAX(_PDO_POWER_, _SNK_POWER_) \
-          if ((_PDO_POWER_) != (_SNK_POWER_)) \
-          { \
-            /* Disalignment between PDO and DPM_SNKRequestedPower structure */ \
-            _status = USBPD_ERROR; \
-          }
-#endif /* _GUI_INTERFACE */
 
 /**
   * @}
@@ -217,21 +180,15 @@ USBPD_StatusTypeDef USBPD_PWR_IF_Init(void)
 {
 /* USER CODE BEGIN USBPD_PWR_IF_Init */
   USBPD_StatusTypeDef _status = USBPD_OK;
-#if defined(_GUI_INTERFACE)
   uint32_t index;
-#endif /* _GUI_INTERFACE */
 
   /* Set links to PDO values and number for Port 0 (defined in PDO arrays in H file).
    */
-#if defined(_GUI_INTERFACE)
   for (index = 0; index < USBPD_MAX_NB_PDO; index++)
   {
     /* SNK PDO for Port 0 */
     PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.ListOfPDO[index] = PORT0_PDO_ListSNK[index];
   }
-#else
-  PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.ListOfPDO = (uint32_t *)PORT0_PDO_ListSNK;
-#endif /* _GUI_INTERFACE */
   PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.NumberOfPDO = USBPD_NbPDO[0];
 
   _status |= USBPD_PWR_IF_CheckUpdateSNKPower(USBPD_PORT_0);
