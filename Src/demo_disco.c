@@ -273,10 +273,6 @@ TimerHandle_t xTimers;
 int8_t tab_msg[MAX_MSG_SIZE][MAX_MSG_LENGHT];
 uint8_t index_msg = 0;
 
-/* Vbus measure value */
-uint32_t _vbusVoltage = 0;
-int32_t _vbusCurrent = 0;
-
 /* cc state */
 CCxPin_TypeDef _cc = CCNONE;
 
@@ -334,24 +330,6 @@ DEMO_ErrorCode DEMO_InitBSP(void)
   /* Initialize the LCD */
   BSP_LCD_Init();
   BSP_LCD_SetFont(&Font12);
-
-  /*##-1- Initialize the power #################################################*/
-  /* Initialize the LCD */
-  PWRMON_Config_t DefaultConfig =
-  {
-    .ShuntConvertTime  = CONVERT_TIME_1100,
-    .BusConvertTime    = CONVERT_TIME_1100,
-    .AveragingMode     = AVERAGING_MODE_1,
-  };
-  
-  BSP_PWRMON_Init(ALERT_VBUS, &DefaultConfig);
-  BSP_PWRMON_StartMeasure(ALERT_VBUS, OPERATING_MODE_CONTINUOUS);
-
-  BSP_PWRMON_Init(ALERT_CC1, &DefaultConfig);
-  BSP_PWRMON_StartMeasure(ALERT_CC1, OPERATING_MODE_CONTINUOUS);
-
-  BSP_PWRMON_Init(ALERT_CC2, &DefaultConfig);
-  BSP_PWRMON_StartMeasure(ALERT_CC2, OPERATING_MODE_CONTINUOUS);
 
  return DEMO_OK;
 }
@@ -612,15 +590,7 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
   {
     if(MENU_START == MenuId)
     {
-      BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-      if(_vbusVoltage < 1500)
-      {
-        return MENU_VERSION; /* only allowed change when nothing plugged : version */
-      }
-      else
-      {      
-        return MENU_PD_SPEC;
-      }
+      return MENU_PD_SPEC;
     }
     if(MENU_START == MenuId)                                            return MENU_PD_SPEC;
     if((MENU_PD_SPEC == MenuId)&& (DPM_Ports[0].DPM_NumberOfRcvSRCPDO >0)) return MENU_POWER;   // PD CONFIG
@@ -662,15 +632,8 @@ static DEMO_MENU Menu_manage_prev(uint8_t MenuId)
     if(MENU_SELECT_SOURCECAPA == MenuId)                return MENU_MEASURE;
     if(MENU_SINKCAPA_RECEIVED == MenuId)                return MENU_SELECT_SOURCECAPA;
     if(MENU_COMMAND == MenuId)                          return MENU_SINKCAPA_RECEIVED;
-    BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-    if(_vbusVoltage < 1500) /* if nothing is connected */
-    {
-      if(MENU_VERSION == MenuId) {st_logo=10;  return MENU_STLOGO;}
-    }
-    else
-    {
-      if((MENU_VERSION == MenuId) && (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))     return MENU_MEASURE; // If not PD device
-    }
+
+    if((MENU_VERSION == MenuId) && (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))     return MENU_MEASURE; // If not PD device
     if((MENU_VERSION == MenuId) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO>0))     return MENU_COMMAND; // If PD device
   }
   st_logo=10;
@@ -1020,8 +983,7 @@ static void Display_pd_spec_menu(void)
   BSP_LCD_SetFont(&Font16);
 
   /* Display menu command */
-  BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-  if ((_vbusVoltage >1500) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO == 0)) /* VBUS is there, but no source capa received yet */
+  if ((DPM_Ports[0].DPM_NumberOfRcvSRCPDO == 0)) /* VBUS is there, but no source capa received yet */
   {
     if (pe_disabled == 1) /* i.e. if we received notification that the attached device is not a PD device */
     {
@@ -1119,6 +1081,10 @@ for(int8_t index=0; index < _max; index++)
 static void Display_measure_menu(void)
 {
   char str[20];
+
+  /* Vbus measure value */
+  uint32_t _vbusVoltage = 0;
+  int32_t _vbusCurrent = 0;
 
   BSP_LCD_SetFont(&Font20);
 

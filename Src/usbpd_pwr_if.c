@@ -228,42 +228,6 @@ USBPD_FunctionalState USBPD_PWR_IF_VBUSIsEnabled(uint8_t PortNum)
 }
 
 /**
-  * @brief  Reads the voltage and the current on a specified port
-  * @param  PortNum Port number
-  * @param  pVoltage: The Voltage in mV
-  * @param  pCurrent: The Current in mA
-  * @retval USBPD_ERROR or USBPD_OK
-*/
-USBPD_StatusTypeDef USBPD_PWR_IF_ReadVA(uint8_t PortNum, uint16_t *pVoltage, uint16_t *pCurrent)
-{
-/* USER CODE BEGIN USBPD_PWR_IF_ReadVA */
-  /* check for valid port */
-  if (!USBPD_PORT_IsValid(PortNum))
-  {
-    return USBPD_ERROR;
-  }
-
-  /* USBPD_OK if at least one pointer is not null, otherwise USBPD_ERROR */
-  USBPD_StatusTypeDef ret = USBPD_ERROR;
-
-  /* Get values from HW_IF */
-  if (pVoltage != NULL)
-  {
-    *pVoltage = HW_IF_PWR_GetVoltage(PortNum);
-    ret = USBPD_OK;
-  }
-  if (pCurrent != NULL)
-  {
-    *pCurrent = HW_IF_PWR_GetCurrent(PortNum);
-    ret = USBPD_OK;
-  }
-
-  return ret;
-/* USER CODE END USBPD_PWR_IF_ReadVA */
-}
-
-
-/**
   * @brief  Allow PDO data reading from PWR_IF storage.
   * @param  PortNum Port number
   * @param  DataId Type of data to be read from PWR_IF

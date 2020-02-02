@@ -110,15 +110,6 @@ USBPD_StatusTypeDef USBPD_PWR_IF_SupplyReady(uint8_t PortNum, USBPD_VSAFE_Status
   */
 USBPD_FunctionalState USBPD_PWR_IF_VBUSIsEnabled(uint8_t PortNum);
 
-/**
-  * @brief  Reads the voltage and the current on a specified port
-  * @param  PortNum Port number
-  * @param  pVoltage The Voltage in mV
-  * @param  pCurrent The Current in mA
-  * @retval ENABLE or DISABLE
-  */
-USBPD_StatusTypeDef USBPD_PWR_IF_ReadVA(uint8_t PortNum, uint16_t *pVoltage, uint16_t *pCurrent);
-
 
 /**
   * @brief  Allow PDO data reading from PWR_IF storage.

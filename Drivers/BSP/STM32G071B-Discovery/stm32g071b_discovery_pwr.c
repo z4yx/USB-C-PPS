@@ -91,7 +91,7 @@ int32_t BSP_PWR_VBUSGetCurrent(uint8_t PortNum)
 {
   int32_t  ret = 0;
 
-  BSP_PWRMON_GetCurrent(ALERT_VBUS, &ret);
+  // BSP_PWRMON_GetCurrent(ALERT_VBUS, &ret);
 
   return ret;
 }
