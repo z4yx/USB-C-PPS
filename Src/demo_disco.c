@@ -267,9 +267,6 @@ static uint8_t   g_tab_menu_sel = { 0 };
 /*  contains the menu selected position  */
 static  int8_t   g_tab_menu_pos = { 0 };
 
-/* demo mode */
-static DEMO_MODE hmode;
-
 /* Timer handler */
 TimerHandle_t xTimers;
 
@@ -307,9 +304,6 @@ static void Display_sinkcapa_menu_nav(int8_t Or);
 static void Display_sourcecapa_menu_nav(int8_t Or);
 static uint8_t Display_sourcecapa_menu_exec(void);
 
-static void Display_reset_spymsg(void);
-static void Display_add_spymsg(USBPD_Msg Message);
-static void Display_menu_spy(void);
 static void Display_menu_version(void);
 
 static void Display_dual_role_power_menu(void);
@@ -322,20 +316,14 @@ static void Display_command_menu(void);
 static void Display_command_menu_nav(int8_t Or);
 static uint8_t Display_command_menu_exec(void);
 
-static CCxPin_TypeDef Check_cc_attachement(uint32_t CC1Voltage, uint32_t CC2Voltage);
-void Initialize_USBPD_Spy(void);
-void Intialize_RX_processing(CCxPin_TypeDef cc);
 
-void DEMO_Task_SPY(void const *);
 void DEMO_Task_Standalone(void const *);
-void SPY_TRACE_TX_Task(void const *argument);
 static void DEMO_PostGetInfoMessage(uint8_t PortNum, uint16_t GetInfoVal);
 
 void vTimerCallback( TimerHandle_t xTimer );
 
 uint8_t DEMO_IsSpyMode(void)
 {
-  if(MODE_SPY == hmode) return 1;
   return 0;
 }
 
@@ -375,7 +363,6 @@ DEMO_ErrorCode DEMO_InitBSP(void)
 
 DEMO_ErrorCode DEMO_InitTask(DEMO_MODE mode)
 {
-  osThreadDef(SPY, DEMO_Task_SPY, osPriorityNormal, 0, 280);
   osThreadDef(STD, DEMO_Task_Standalone, osPriorityAboveNormal, 0, 280);
 
   osMessageQDef(DemoEvent, 30, uint32_t);
@@ -384,25 +371,7 @@ DEMO_ErrorCode DEMO_InitTask(DEMO_MODE mode)
   osMessageQDef(DemoMsgBox,48, USBPD_Msg);
   DemoMsgBox = osMessageCreate(osMessageQ(DemoMsgBox), NULL);
 
-  if (MODE_SPY == mode)
-  {
-    Initialize_USBPD_Spy();
-    Intialize_RX_processing(CC1);
-
-    if( NULL == osThreadCreate(osThread(SPY), NULL))
-    {
-      while(1);
-    }
-    TraceQueueId = osMessageCreate(osMessageQ(DemoTRACE), NULL);
-    osThreadDef(TRA_TX, SPY_TRACE_TX_Task, osPriorityLow, 0, configMINIMAL_STACK_SIZE * 2);
-    osThreadCreate(osThread(TRA_TX), NULL);
-  }
-  else
-  {
-    osThreadCreate(osThread(STD), &DemoEvent);
-  }
-
-  hmode = mode;
+  osThreadCreate(osThread(STD), &DemoEvent);
 
   return DEMO_OK;
 }
@@ -514,24 +483,6 @@ uint8_t    power_index = 0;
   * @retval CC1 CC2 or CCNONE
   */
 char str[40];
-static CCxPin_TypeDef Check_cc_attachement(uint32_t CC1Voltage, uint32_t CC2Voltage)
-{
-  CCxPin_TypeDef val = CCNONE;
-  static uint8_t index = 0;
-  index++;
-
-  if ((CC2Voltage > 350) && (CC2Voltage < 2500)) {val = CC2;}
-  if (MODE_SPY == hmode) /* if we are in spy mode, the offset on CC1 is different */
-  { 
-    if ((CC1Voltage > 650) && (CC1Voltage < 2500)) {val = CC1;}
-  }
-  else
-  {
-    if ((CC1Voltage > 350) && (CC1Voltage < 2500)) {val = CC1;}
-  }
-
-  return val;
-}
 
 /**
   * @brief  Display clear info
@@ -558,10 +509,7 @@ static void Display_stlogo(void)
     BSP_LCD_SetFont(&Font16);
     BSP_LCD_DisplayStringAt(0,1*16, (uint8_t*)"STM32G0",CENTER_MODE);
     BSP_LCD_DisplayStringAt(0,2*16, (uint8_t*)"Disco Kit",CENTER_MODE);
-    if (MODE_SPY == hmode)
-      BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"SPY",CENTER_MODE);
-    else
-      BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"SINK",CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"SINK",CENTER_MODE);
   }
   
 }
@@ -665,29 +613,7 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
   */
 static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 {
-  if (MODE_SPY == hmode)
-  {
-    if(_cc == CCNONE)                                   
-    {
-      BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-      if(_vbusVoltage < 1500)
-      {
-        return MENU_VERSION; /* only allowed change when nothing plugged : version */
-      }
-    }
-    if(MENU_STLOGO == MenuId)                           return MENU_PD_SPEC;
-    if(MENU_START == MenuId)                            return MENU_PD_SPEC;
-    if((MENU_PD_SPEC == MenuId)&& (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))      return MENU_MEASURE; // No PD config
-    if((MENU_PD_SPEC == MenuId)&& (DPM_Ports[0].DPM_NumberOfRcvSRCPDO >0))        return MENU_POWER;   // PD CONFIG
-    if(MENU_POWER == MenuId)                            return MENU_DUAL_ROLE_POWER;
-    if(MENU_DUAL_ROLE_POWER == MenuId)                  return MENU_UNCHUNKED_MODE;
-    if(MENU_UNCHUNKED_MODE == MenuId)                   return MENU_DATA_ROLE_SWAP;
-    if(MENU_DATA_ROLE_SWAP == MenuId)                   return MENU_SELECT_SOURCECAPA;
-    if(MENU_SELECT_SOURCECAPA == MenuId)                return MENU_MEASURE;
-    if(MENU_MEASURE == MenuId)                          return MENU_VERSION;
-    if(MENU_VERSION == MenuId)                          return MENU_VERSION;
-  }
-  else /* Standalone mode */
+  /* Standalone mode */
   {
     if(MENU_START == MenuId)
     {
@@ -727,29 +653,7 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
   */
 static DEMO_MENU Menu_manage_prev(uint8_t MenuId)
 {
-  if (MODE_SPY == hmode )
-  {
-    if(_cc == CCNONE)      
-    {
-      BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-      if(_vbusVoltage < 1500)
-      {
-        st_logo=10;
-        return MENU_STLOGO; /* only allowed change when nothing plugged : version */
-      }
-    } /* only allowed change when nothing plugged : start menu */
-    if(MENU_START == MenuId)                            return MENU_START;
-    if(MENU_PD_SPEC == MenuId)                          return MENU_START;
-    if(MENU_POWER == MenuId)                            return MENU_PD_SPEC;
-    if(MENU_DUAL_ROLE_POWER == MenuId)                  return MENU_POWER;
-    if(MENU_UNCHUNKED_MODE == MenuId)                   return MENU_DUAL_ROLE_POWER;
-    if(MENU_DATA_ROLE_SWAP == MenuId)                   return MENU_UNCHUNKED_MODE;
-    if(MENU_SELECT_SOURCECAPA == MenuId)                return MENU_DATA_ROLE_SWAP;
-    if((MENU_MEASURE == MenuId) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO >0))       return MENU_SELECT_SOURCECAPA; // if PD
-    if((MENU_MEASURE == MenuId) && (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))     return MENU_PD_SPEC;           // If not PD device
-    if(MENU_VERSION == MenuId)                          return MENU_MEASURE;
-  }
-  else  /* Standalone mode */
+  /* Standalone mode */
   {
     if(MENU_START == MenuId)                            return MENU_START;
     if(MENU_PD_SPEC == MenuId)                          return MENU_START;
@@ -822,23 +726,7 @@ static void Display_sinkcapa_menu_nav(int8_t Nav)
   }
   else
   {
-    if (hmode == MODE_STANDALONE)
-    {
       Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
-    }
-    else
-    {
-      if((Nav == 1) && (_max > MAX_LINE_PDO))
-      {
-        _start = _max - MAX_LINE_PDO;
-        _end = _max;
-      }
-      else
-      {
-        _start = 0;
-        _end = MIN(_max, MAX_LINE_PDO);
-      }
-    }
     
     for(int8_t index=_start; index < _end; index++)
     {
@@ -888,7 +776,6 @@ static void Display_sinkcapa_menu_nav(int8_t Nav)
         break;
       }
 
-      if (hmode == MODE_STANDALONE)
       {
         if((index - _start) == g_tab_menu_pos)
         {
@@ -899,7 +786,6 @@ static void Display_sinkcapa_menu_nav(int8_t Nav)
       string_completion(_str);
       BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t*)_str);
 
-      if (hmode == MODE_STANDALONE)
       {
         if((index - _start) == g_tab_menu_pos)
         {
@@ -921,15 +807,8 @@ static void Display_sourcecapa_menu(void)
   uint8_t _str[20];
 
   /* Display menu source capa */
-  if (hmode == MODE_STANDALONE)
   {
     sprintf((char *)_str, "Select the profile:");
-    string_completion(_str);
-    BSP_LCD_DisplayStringAtLine(0, _str);
-  }
-  else
-  {
-    sprintf((char *)_str, "Source profile(s)");
     string_completion(_str);
     BSP_LCD_DisplayStringAtLine(0, _str);
   }
@@ -966,24 +845,9 @@ static void Display_sourcecapa_menu_nav(int8_t Nav)
   uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
   uint8_t _start, _end, _pos = 0;
 
-  if (hmode == MODE_STANDALONE)
   {
     Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
   }
-  else
-  {
-    if((Nav == 1) && (_max > MAX_LINE_PDO))
-    {
-      _start = _max - MAX_LINE_PDO;
-      _end = _max;
-    }
-    else
-    {
-      _start = 0;
-      _end = MIN(_max, MAX_LINE_PDO);
-    }
-  }
-
 
   for(int8_t index=_start; index < _end; index++)
   {
@@ -1032,7 +896,6 @@ static void Display_sourcecapa_menu_nav(int8_t Nav)
       break;
     }
 
-    if (hmode == MODE_STANDALONE)
     {
       if((index - _start) == g_tab_menu_pos)
       {
@@ -1043,7 +906,6 @@ static void Display_sourcecapa_menu_nav(int8_t Nav)
     string_completion(_str);
     BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t*)_str);
 
-    if (hmode == MODE_STANDALONE)
     {
       if((index - _start) == g_tab_menu_pos)
       {
@@ -1121,59 +983,6 @@ static void Display_extcapa_menu_nav(int8_t Orientation)
   }
 }
 
-
-void Display_reset_spymsg()
-{
-  memset(tab_msg, 0, sizeof(tab_msg));
-  DPM_Ports[0].DPM_NumberOfRcvSNKPDO = 0;
-  DPM_Ports[0].DPM_NumberOfRcvSRCPDO = 0;
-  memset((uint8_t *)&DPM_Ports[0].DPM_RcvSRCExtendedCapa, 0, sizeof(DPM_Ports[0].DPM_RcvSRCExtendedCapa));
-}
-
-
-void Display_add_spymsg(USBPD_Msg Message)
-{
-  DEMO_MsgHeader_TypeDef header;
-  header.d16 = *(uint16_t *)Message.data;
-
-#define CTRL_GOODCRC   (char *)_tab_control_msg[1]
-#define DATA_SRCCAPA   (char *)_tab_data_msg[1]
-#define DATA_SNKCAPA   (char *)_tab_data_msg[4]
-#define EXT_SRCCAPA    (char *)_tab_extdata_msg[1]
-
-  if(strcmp((char *)Decode_HEADER(header.d16),CTRL_GOODCRC) != 0)
-  {
-    strncpy((char *)tab_msg[index_msg], (char *)Decode_HEADER(header.d16), MAX_MSG_LENGHT);
-
-    /* get SNK capa */
-    if(strcmp((char *)tab_msg[index_msg],DATA_SNKCAPA) == 0)
-    {
-      /* Save the SNK capa into DPM */
-      DPM_Ports[0].DPM_NumberOfRcvSNKPDO = header.b.NumberOfDataObjects;
-      memcpy(DPM_Ports[0].DPM_ListOfRcvSNKPDO, &Message.data[2], header.b.NumberOfDataObjects * 4);
-    }
-
-    /* get SRC capa send, but store only the data sent by the source */
-    if((strcmp((char *)tab_msg[index_msg],DATA_SRCCAPA) == 0) && (header.b.PortPowerRole_CablePlug == 1))
-    {
-      /* Save the SRC capa into DPM */
-      DPM_Ports[0].DPM_NumberOfRcvSRCPDO = header.b.NumberOfDataObjects;
-      memcpy(DPM_Ports[0].DPM_ListOfRcvSRCPDO, &Message.data[2], header.b.NumberOfDataObjects * 4);
-      DPM_Params[0].PE_SpecRevision = header.b.SpecificationRevision;
-    }
-
-    /* get EXT capa */
-    if((strcmp((char *)tab_msg[index_msg], EXT_SRCCAPA) == 0) && (header.b.PortPowerRole_CablePlug == 1))
-    {
-      /* Save the EXT SRC capa into DPM */
-      memcpy((uint8_t*)&DPM_Ports[0].DPM_RcvSRCExtendedCapa, &Message.data[4], 24);
-    }
-
-    index_msg++;
-    if(index_msg == MAX_MSG_SIZE) index_msg = 0;
-  }
-}
-
 /**
   * @brief  command menu display
   * @retval None
@@ -1192,13 +1001,6 @@ static void Display_command_menu(void)
 static void Display_start_menu(void)
 {
   BSP_LCD_SetFont(&Font16);
-  if(MODE_SPY == hmode)
-  {
-    BSP_LCD_DisplayStringAt(0,1*16, (uint8_t*)"Spy mode",CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0,2*16, (uint8_t*)"Two devices",CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"connected",CENTER_MODE);
-  }
-  else
   {
     BSP_LCD_DisplayStringAt(0,1*16, (uint8_t*)"Attached to",CENTER_MODE);
     if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRP_SUPPORT_Msk))
@@ -1224,7 +1026,7 @@ static void Display_pd_spec_menu(void)
 
   /* Display menu command */
   BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-  if ((hmode != MODE_SPY) && (_vbusVoltage >1500) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO == 0)) /* VBUS is there, but no source capa received yet */
+  if ((_vbusVoltage >1500) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO == 0)) /* VBUS is there, but no source capa received yet */
   {
     if (pe_disabled == 1) /* i.e. if we received notification that the attached device is not a PD device */
     {
@@ -1409,11 +1211,6 @@ static void Display_data_role_swap_menu()
   uint8_t _str[20];
   uint8_t line_offset=0;
   
-  if(MODE_SPY == hmode)
-  {
-    line_offset = 10;
-  }
-  
   /* Display the data role swap capabilities */
   if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRD_SUPPORT_Msk))
   {
@@ -1425,7 +1222,6 @@ static void Display_data_role_swap_menu()
     sprintf((char *)_str, ": YES");
     BSP_LCD_DisplayStringAt(0,2*16+line_offset, _str, CENTER_MODE);
     
-    if(MODE_SPY != hmode) 
     {
       if (DPM_Params[0].PE_DataRole == 0)
       {
@@ -1619,7 +1415,6 @@ static void Display_menuupdate_info(DEMO_MENU MenuSel)
     Display_extcapa_menu();
     break;
   case MENU_SPY_MESSAGE :
-    Display_menu_spy();
     break;
   case MENU_VERSION :
     Display_menu_version();
@@ -1769,31 +1564,13 @@ static void Display_menu_version()
   /* Display the version of firmware */
   sprintf((char *)str_version, "w26.5 C");
 #if defined(_GUI_INTERFACE)
-  if(MODE_SPY != hmode) {
   sprintf((char *)str_version,"%s GUI", str_version);
-  }
 #endif
 #if defined(_TRACE)
   sprintf((char *)str_version,"%s TRACE", str_version);
 #endif
   BSP_LCD_SetFont(&Font8);
   BSP_LCD_DisplayStringAtLine(7,  (uint8_t *)str_version);
-}
-
-static void Display_menu_spy()
-{
-  uint8_t start = index_msg;
-  uint8_t line = 1;
-
-  BSP_LCD_SetFont(&Font12);
-
-  /* Display on the string the latest msg exchanged */
-  for(uint8_t index = 0; index < MAX_MSG_SIZE; index++)
-  {
-    BSP_LCD_DisplayStringAtLine(line++,(uint8_t*)tab_msg[start]);
-    start++;
-    if(start == MAX_MSG_SIZE) start = 0;
-  }
 }
 
 /**
@@ -1851,234 +1628,6 @@ static uint8_t Display_menuexec_info(uint8_t MenuSel)
   return _exec_ok;
 }
 
-/**
-  * @brief  main demo function to manage all the appplication event and to update MMI
-  * @retval None
-  */
-uint32_t count_msg_received = 0;
-static void DEMO_Manage_spy(void)
-{
-  static DEMO_STATE _state =  DETACHED;
-  uint32_t _cc1Voltage = 0, _cc2Voltage = 0;
-  int32_t _vbusCurrent;
-  USBPD_Msg _msg;
-  uint32_t _mmi;
-  static DEMO_MENU _menuSel = MENU_STLOGO;
-  static uint16_t _refresh_counter = 0;
-#define REFRESH_TIME 200
-  _refresh_counter++;
-  /* Get voltage on cc line */
-  BSP_PWRMON_GetVoltage(ALERT_CC1, &_cc1Voltage);
-  BSP_PWRMON_GetVoltage(ALERT_CC2, &_cc2Voltage);
-
-  /* Display VBUS IBUS */
-  BSP_PWRMON_GetVoltage(ALERT_VBUS, &_vbusVoltage);
-  BSP_PWRMON_GetCurrent(ALERT_VBUS, &_vbusCurrent);
-
-  _cc = Check_cc_attachement(_cc1Voltage, _cc2Voltage);
-
-  if (_refresh_counter == REFRESH_TIME)
-  {
-    if (GPIO_PIN_RESET == HAL_GPIO_ReadPin(DOOR_SENSE_PORT, DOOR_SENSE_PIN))
-    {
-      // Disco door has changed position : Reset the board
-      HAL_NVIC_SystemReset();
-    }
-    _refresh_counter = 0;
-    if(MENU_MEASURE == _menuSel)
-    {
-      Display_menuupdate_info(_menuSel);
-    }
-    if (_state == ATTACHED)
-    {
-      /* current indication */
-      if(_vbusCurrent < -2 )
-      {
-        BSP_LED_Off(LED4);
-        BSP_LED_On(LED5);
-      }
-      else
-      {
-        if( _vbusCurrent == 0)
-        {
-          BSP_LED_Off(LED5);
-          BSP_LED_Off(LED4);
-        }
-        else
-        {
-          BSP_LED_On(LED4);
-          BSP_LED_Off(LED5);
-        }
-      }
-    }
-  }
-  switch(_state)
-  {
-  case DETACHED :
-    {
-      if((_vbusVoltage > 1500) && (_cc != CCNONE))
-      {
-        _state   = ATTACHED;
-        /* Set the USCP to receive message on the right CC line */
-        Intialize_RX_processing(_cc);
-
-        char strtmp[100];
-        sprintf(strtmp, "VBUS:%d, CC:%d", (int)_vbusVoltage, (int)_cc);
-
-        USBPD_TRACE_Add(USBPD_TRACE_CADEVENT, 0, USBPD_CAD_EVENT_ATTACHED, NULL, 0);
-        USBPD_TRACE_Add(USBPD_TRACE_DEBUG,    0, 0,                        (uint8_t*)strtmp, strlen(strtmp));
-        _menuSel = MENU_PD_SPEC;
-        demo_timeout = HAL_GetTick();
-        Display_menuupdate_info(_menuSel);
-
-      }
-      else
-      {
-        Display_stlogo();
-        _cc = CCNONE;
-      }
-      _vbusCurrent = 0;
-      break;
-    }
-  case ATTACHED :
-    {
-      BSP_PWRMON_GetCurrent(ALERT_VBUS, &_vbusCurrent);
-      /* detach event only linked with vbus level */
-      if(_vbusVoltage < 1000)
-      {
-        char strtmp[100];
-        sprintf(strtmp, "VBUS:%d: CC:%d", (int)_vbusVoltage, (int)_cc);
-
-        USBPD_TRACE_Add(USBPD_TRACE_DEBUG,    0, 0,                        (uint8_t*)strtmp, strlen(strtmp));
-
-        _state = DETACHED;
-        /* disable message reception on USCP to */
-        USBPD_TRACE_Add(USBPD_TRACE_CADEVENT, 0, USBPD_CAD_EVENT_DETACHED, NULL, 0);
-        Display_reset_spymsg();
-        _menuSel = MENU_STLOGO;
-        _cc = CCNONE;
-        DPM_Ports[0].DPM_NumberOfRcvSRCPDO = 0;
-        DPM_Ports[0].DPM_NumberOfRcvSNKPDO = 0;
-        memset(&DPM_Ports[0].DPM_RcvSRCExtendedCapa, 0, sizeof(DPM_Ports[0].DPM_RcvSRCExtendedCapa));
-        Display_menuupdate_info(_menuSel);
-        BSP_LED_Off(LED7);
-        BSP_LED_Off(LED6);
-        BSP_LED_Off(LED5);
-        BSP_LED_Off(LED4);
-        st_logo =10;
-        pe_disabled = 0; /* reset PE state information in case of no PD device attached */
-      }
-      break;
-    }
-  }
-
-  /* check the message reception of message */
-  if(xQueueReceive(DemoMsgBox, &_msg, 0) == pdTRUE)
-  {
-    /* decode the message to extract information */
-    count_msg_received++;
-    Display_add_spymsg(_msg);
-    Display_menuupdate_info(_menuSel);
-  }
-
-  if (ATTACHED == _state)
-  {
-    if (HAL_GetTick() - demo_timeout> 20000)
-    {
-      _menuSel = MENU_MEASURE;
-      demo_timeout = HAL_GetTick();
-      Display_menuupdate_info(_menuSel);
-    }
-  }
-
-  /* check reception message of MMI event */
-  if(xQueueReceive(DemoEvent, &_mmi, 0) == pdTRUE)
-  {
-    switch(_mmi)
-    {
-    case DEMO_MMI_ACTION_LEFT_PRESS :
-      _menuSel = Menu_manage_prev(_menuSel);
-      Display_menuupdate_info(_menuSel);
-      demo_timeout = HAL_GetTick();;
-      break;
-    case DEMO_MMI_ACTION_RIGHT_PRESS :
-      _menuSel = Menu_manage_next(_menuSel);
-      Display_menuupdate_info(_menuSel);
-      demo_timeout = HAL_GetTick();;
-      break;
-    case DEMO_MMI_ACTION_DOWN_PRESS :       /* up /down */
-      Display_menunav_info(_menuSel, +1);
-      demo_timeout = HAL_GetTick();;
-      break;
-    case  DEMO_MMI_ACTION_UP_PRESS:
-      Display_menunav_info(_menuSel, -1);
-      demo_timeout = HAL_GetTick();;
-      break;
-    }
-  }
-
-
-  BSP_LCD_Refresh();
-}
-
-DMA_Channel_TypeDef *hdmarx;
-UCPD_TypeDef *husbpd;
-uint8_t ptr_RxBuff[264];
-#define SIZE_MAX_PD_TRANSACTION 264
-
-void Initialize_USBPD_Spy(void)
-{
-  LL_UCPD_InitTypeDef settings;
-
-  husbpd = USBPD_HW_GetUSPDInstance(0);
-
-  /* initialise usbpd */
-  LL_UCPD_StructInit(&settings);
-  LL_UCPD_Init(husbpd, &settings);
-  LL_UCPD_SetRxOrderSet(husbpd, LL_UCPD_ORDERSET_SOP | LL_UCPD_ORDERSET_HARDRST);
-  LL_UCPD_Enable(husbpd);
-  LL_UCPD_SetccEnable(husbpd, LL_UCPD_CCENABLE_CC1CC2);
-
-  /* disable dead battery */
-  RCC->APBENR2|= RCC_APBENR2_SYSCFGEN;
-//  for(uint32_t index= 0; index < 1000; index++) { asm("NOP");};
-  SET_BIT(SYSCFG->CFGR1,SYSCFG_CFGR1_UCPD1_STROBE);
-//  for(uint32_t index= 0; index < 1000; index++) { asm("NOP");};
-}
-
-void Intialize_RX_processing(CCxPin_TypeDef cc)
-{
-  /* Prepare ucpd to handle PD message
-            RX message start listen
-            TX prepare the DMA to be transfer ready
-            Detection listen only the line corresponding CC=Rd for SRC/SNK */
-//  Ports[PortNum].hdmatx = BSP_USBPD_Init_DMATxInstance(PortNum);
-  hdmarx = USBPD_HW_Init_DMARxInstance(0);
-
-  /* Set the RX dma to allow reception */
-  WRITE_REG(hdmarx->CPAR, (uint32_t)&husbpd->RXDR);
-  WRITE_REG(hdmarx->CMAR, (uint32_t)ptr_RxBuff);
-  hdmarx->CNDTR = SIZE_MAX_PD_TRANSACTION;
-  hdmarx->CCR|= DMA_CCR_EN;
-
-  /* disabled non Rd line set CC line enable */
-#define INTERRUPT_MASK  UCPD_IMR_HRSTDISCIE  | UCPD_IMR_HRSTSENTIE | \
-                        UCPD_IMR_RXORDDETIE  | UCPD_IMR_RXHRSTDETIE | UCPD_IMR_RXOVRIE | UCPD_IMR_RXMSGENDIE
-
-  MODIFY_REG(husbpd->IMR, INTERRUPT_MASK, INTERRUPT_MASK);
-
-  /* Handle CC enable */
-//  Ports[PortNum].CCx = cc;
-  LL_UCPD_SetccEnable(husbpd, LL_UCPD_CCENABLE_CC1CC2);
-
-  /* Set CC pin for PD message */
-  LL_UCPD_SetCCPin(husbpd, cc == CC1?LL_UCPD_CCPIN_CC1:LL_UCPD_CCPIN_CC2);
-
-  LL_UCPD_SetRxMode(husbpd, LL_UCPD_RXMODE_NORMAL);
-  LL_UCPD_RxDMAEnable(husbpd);
-  LL_UCPD_RxEnable(husbpd);
-}
-
 
 /**
   * @brief  main demo function to manage all the appplication event and to update MMI in standalone mode
@@ -2090,12 +1639,6 @@ static void DEMO_Manage_event(uint32_t Event)
   static DEMO_MENU _tab_menu_val = MENU_START;
   static uint8_t   _tab_connect_status = 0;
 
-  if (GPIO_PIN_SET == HAL_GPIO_ReadPin(DOOR_SENSE_PORT, DOOR_SENSE_PIN))
-  {
-    // Disco door has changed position : Reset the board
-    HAL_NVIC_SystemReset();
-  }
-
   switch(Event & DEMO_MSG_TYPE_MSK)
   {
   case DEMO_MSG_MMI:
@@ -2105,7 +1648,7 @@ static void DEMO_Manage_event(uint32_t Event)
       case DEMO_MMI_ACTION_NONE:
         if(_tab_connect_status != 0)
         {
-          if ((MODE_SPY == hmode) || ((MODE_SPY != hmode) && (MENU_MEASURE == _tab_menu_val)))
+          if (((MENU_MEASURE == _tab_menu_val)))
           {
             Display_menuupdate_info(_tab_menu_val);
           }
@@ -2295,24 +1838,6 @@ static void DEMO_Manage_event(uint32_t Event)
   * @param  arg
   * @retval None
   */
-void DEMO_Task_SPY(void const *arg)
-{
-  NVIC_SetPriority(UCPD1_2_IRQn,0);
-  NVIC_EnableIRQ(UCPD1_2_IRQn);
-    
-  for (;;)
-  {
-      DEMO_Manage_spy();
-      osDelay(1); /* to allow FreeRTOS scheduling*/
-  }
-}
-
-
-/**
-  * @brief  demo task function
-  * @param  arg
-  * @retval None
-  */
 
 void DEMO_Task_Standalone(void const *arg)
 {
@@ -2349,102 +1874,6 @@ void DEMO_Task_Standalone(void const *arg)
     {
       DEMO_Manage_event(event.value.v);
     }
-  }
-}
-
-/**
-  * @brief  demo ucpd spy irq handler
-  * @retval None
-  */
-uint32_t count_message_it;
-void DEMO_SPY_Handler(void)
-{
-  uint32_t _interrupt = LL_UCPD_ReadReg(husbpd, SR);
-  static uint8_t ovrflag = 0;
-
-  if((husbpd->IMR & _interrupt) != 0)
-  {
-    /* RXORDDET: not needed so stack will not enabled this interrupt */
-    if(_interrupt & UCPD_SR_RXORDDET)
-    {
-      LL_UCPD_ClearFlag_RxOrderSet(husbpd);
-      return;
-    }
-
-    /* check RXHRSTDET */
-    if(_interrupt & UCPD_SR_RXHRSTDET)
-    {
-       /* receive an hardreset message */
-       LL_UCPD_ClearFlag_RxHRST(husbpd);
-       return;
-    }
-
-    /* check RXOVR */
-    if(_interrupt & UCPD_SR_RXOVR)
-    {
-     /* nothing to do the message will be discarded and the port partner retry the send */
-      ovrflag = 1;
-      LL_UCPD_ClearFlag_RxOvr(husbpd);
-      return;
-    }
-
-    /* check RXMSGEND an Rx message has been recieved */
-    if(_interrupt & UCPD_SR_RXMSGEND )
-    {
-      /* for DMA mode add a control to check if the number of data recived is corresponding with the number of
-         data receive by USBPD */
-      uint16_t _datasize = husbpd->RX_PAYSZ;
-      LL_UCPD_ClearFlag_RxMsgEnd(husbpd);
-
-      CLEAR_BIT(hdmarx->CCR, DMA_CCR_EN);
-
-      if(((_interrupt & UCPD_SR_RXERR) == 0) && (ovrflag == 0))
-      {
-        /* Rx message has been recieved without error */
-        DEMO_MsgHeader_TypeDef header = *(DEMO_MsgHeader_TypeDef *)ptr_RxBuff;
-
-        if(header.b.PortDataRole == USBPD_PORTDATAROLE_UFP)
-        {
-          USBPD_TRACE_Add(USBPD_TRACE_SNK, 0, 0, ptr_RxBuff, _datasize);
-        }
-        else
-        {
-          USBPD_TRACE_Add(USBPD_TRACE_SRC, 0, 0, ptr_RxBuff, _datasize);
-        }
-
-        /* message reception complete */
-        USBPD_Msg _msg;
-        BaseType_t xHigherPriorityTaskWoken;
-
-        _msg.SOPx = 0;
-        _msg.size = _datasize;
-        memcpy(_msg.data, ptr_RxBuff, 30);
-        count_message_it++;
-        xQueueSendFromISR(DemoMsgBox, &_msg, &xHigherPriorityTaskWoken);
-      }
-      ovrflag = 0;
-
-      /* Ready for next transaction */
-      WRITE_REG(hdmarx->CMAR, (uint32_t)ptr_RxBuff);
-      WRITE_REG(hdmarx->CNDTR, SIZE_MAX_PD_TRANSACTION);
-      SET_BIT(hdmarx->CCR, DMA_CCR_EN);
-      return;
-    }
-
-    /* check FRSEVTIE */
-    if(_interrupt !=  UCPD_SR_FRSEVT)
-    {
-      /* not yet handled */
-    }
-  }
-}
-
-void SPY_TRACE_TX_Task(void const *argument)
-{
-  for(;;)
-  {
-    USBPD_TRACE_TX_Process();
-    osDelay(5);
   }
 }
 

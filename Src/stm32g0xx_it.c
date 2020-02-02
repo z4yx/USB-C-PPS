@@ -137,22 +137,6 @@ void SysTick_Handler(void)
 /*  available peripheral interrupt handler's name please refer to the startup */
 /*  file (startup_stm32g0xx.s).                                               */
 /******************************************************************************/
-#if defined(_TRACE)||defined(_GUI_INTERFACE)
-/**
-  * @brief This function handles DMA1 channel 4, channel 5, channel 6, channel 7 and DMAMUX1 interrupts.
-  * @retval None
-  */
-void DMA1_Ch4_7_DMAMUX1_OVR_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Ch4_7_DMAMUX1_OVR_IRQn 0 */
-   TRACER_EMB_IRQHandlerDMA();
-  /* USER CODE END DMA1_Ch4_7_DMAMUX1_OVR_IRQn 0 */
-  
-  /* USER CODE BEGIN DMA1_Ch4_7_DMAMUX1_OVR_IRQn 1 */
-
-  /* USER CODE END DMA1_Ch4_7_DMAMUX1_OVR_IRQn 1 */
-}
-#endif /*_TRACE || _GUI_INTERFACE */
 
 /**
   * @brief This function handles UCPD1 and UCPD2 interrupts / UCPD1 and UCPD2 wake-up interrupts through EXTI lines 32 and 33.
@@ -161,30 +145,12 @@ void DMA1_Ch4_7_DMAMUX1_OVR_IRQHandler(void)
 void UCPD1_2_IRQHandler(void)
 {
   /* USER CODE BEGIN UCPD1_2_IRQn 0 */
-  if( DEMO_IsSpyMode())
-  {
-    DEMO_SPY_Handler();
-  }
-  else
-  {
-    USBPD_PORT0_IRQHandler();
-  }
+  USBPD_PORT0_IRQHandler();
   /* USER CODE END UCPD1_2_IRQn 0 */
   /* USER CODE BEGIN UCPD1_2_IRQn 1 */
 
   /* USER CODE END UCPD1_2_IRQn 1 */
 }
-
-#if defined(_GUI_INTERFACE) || defined(_TRACE)
-/**
-  * @brief  This function handles USART 3 and 4 interrupts.
-  * @retval None
-  */
-void USART3_4_LPUART1_IRQHandler(void)
-{
-  TRACER_EMB_IRQHandlerUSART();
-}
-#endif /*_GUI_INTERFACE || _TRACE */
 
 /* USER CODE BEGIN 1 */
 

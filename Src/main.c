@@ -119,41 +119,6 @@ int main(void)
  /* USER CODE BEGIN 2 */
   HAL_NVIC_SetPriority(SysTick_IRQn, TICK_INT_PRIORITY ,0U);
   LL_SYSTICK_EnableIT();
-  DOOR_SENSE_GPIO_CLK_ENABLE();
-  GPIO_InitTypeDef GPIO_InitStruct;
-
-  GPIO_InitStruct.Pin = DOOR_SENSE_PIN;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  HAL_GPIO_Init(DOOR_SENSE_PORT, &GPIO_InitStruct);
-
-  BSP_LED_Init(LED4);
-  BSP_LED_Init(LED5);
-  BSP_LED_Init(LED6);
-  BSP_LED_Init(LED7);
-  HAL_Delay(1);
-
-  if( GPIO_PIN_SET == HAL_GPIO_ReadPin(DOOR_SENSE_PORT, DOOR_SENSE_PIN)) /* we are in SPY mode ? */
-  {
-    BSP_LED_On(LED6);
-
-    BSP_MOSFET_Init(MOSFET_ENCC1);
-    BSP_MOSFET_Init(MOSFET_ENCC2);
-    BSP_MOSFET_Init(MOSFET_RD_CC2);
-    BSP_MOSFET_On(MOSFET_ENCC1);
-    BSP_MOSFET_On(MOSFET_ENCC2);
-    BSP_MOSFET_On(MOSFET_RD_CC1);
-    /* Start in spy mode */
-    /* Initialize spy MMI */
-    USBPD_TRACE_Init();
-    DEMO_InitBSP();
-    DEMO_InitTask(MODE_SPY);
-    /* Initialize the TRACE */
-    /* Start the scheduler */
-    osKernelStart();
-  }
-
   DEBUG_USART_Init();
   printf("init ok\r\n");
   /* USER CODE END 2 */

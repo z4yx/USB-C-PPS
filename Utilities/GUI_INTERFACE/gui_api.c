@@ -590,7 +590,7 @@ USBPD_FunctionalState GUI_Init(const uint8_t* (*CB_HWBoardVersion)(void), const 
 void GUI_Start(void)
 {
   /* register the GUI callback to manage UART reception */
-  TRACER_EMB_StartRX(GUI_CALLBACK_RX);
+  // TRACER_EMB_StartRX(GUI_CALLBACK_RX);
 }
 
 /**
@@ -771,7 +771,7 @@ uint32_t GUI_RXProcess(uint32_t Event)
       break;
     default:
       /* Another GUI messages received by the device */
-      TRACER_EMB_Add(msg, size);
+      // TRACER_EMB_Add(msg, size);
       break;
     }
   }
@@ -810,7 +810,7 @@ uint32_t GUI_FormatAndSendNotification(uint32_t PortNum, uint32_t TypeNotificati
   /* Only send notification if GUI is connected */
   if (GUI_STATE_INIT != GUI_SendNotification(PortNum, &msg, &size, TypeNotification, Value))
   {
-    TRACER_EMB_Add(msg, size);
+    // TRACER_EMB_Add(msg, size);
   }
   return 0;
 }
@@ -956,7 +956,7 @@ USBPD_GUI_State GUI_SendAnswer(uint8_t **pMsgToSend, uint8_t *pSizeMsg)
       Send_DpmInitCnf(port, Processed);
       *pMsgToSend = Processed;
       *pSizeMsg = TLV_get_string_length(Processed) + 8;
-      TRACER_EMB_Add(*pMsgToSend, *pSizeMsg);
+      // TRACER_EMB_Add(*pMsgToSend, *pSizeMsg);
       GUI_State = GUI_STATE_RUNNING;
       if (0 == port)
       {
