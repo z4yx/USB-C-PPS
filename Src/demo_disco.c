@@ -1468,6 +1468,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
 
   /* selected SRC PDO */
   pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel];
+  printf("selected PDO %d, type=%#x\r\n", g_tab_menu_sel, pdo.GenericPDO.PowerObject);
   switch(pdo.GenericPDO.PowerObject)
   {
   case USBPD_CORE_PDO_TYPE_APDO :
@@ -1483,6 +1484,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
   /* check if the selected source PDO is matching any of the SNK PDO */
   if (USBPD_TRUE == USBPD_DPM_SNK_EvaluateMatchWithSRCPDO(0, pdo.d32, &voltage, &allowablepower))
   {
+    printf("eval sccuess\r\n");
     /* consider the current PDO as correct */
   }
   else
