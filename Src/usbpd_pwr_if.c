@@ -94,18 +94,6 @@
               /* Update min POWER */ \
               (_SNK_POWER_) = (_PDO_POWER_); \
             }
-#define _PWR_CHECK_VOLTAGE_MIN(_PDO_VOLT_, _SNK_VOLT_) \
-            /* Update min voltage */ \
-            (_SNK_VOLT_) = (_PDO_VOLT_);
-#define _PWR_CHECK_VOLTAGE_MAX(_PDO_VOLT_, _SNK_VOLT_) \
-            /* Update min voltage */ \
-            (_SNK_VOLT_) = (_PDO_VOLT_);
-#define _PWR_CHECK_CURRENT_MAX(_PDO_CURRENT_, _SNK_CURRENT_) \
-            /* Update min current */ \
-            (_SNK_CURRENT_) = (_PDO_CURRENT_);
-#define _PWR_CHECK_POWER_MAX(_PDO_POWER_, _SNK_POWER_) \
-            /* Update min POWER */ \
-            (_SNK_POWER_) = (_PDO_POWER_);
 
 /**
   * @}
@@ -184,11 +172,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_Init(void)
 
   /* Set links to PDO values and number for Port 0 (defined in PDO arrays in H file).
    */
-  for (index = 0; index < USBPD_MAX_NB_PDO; index++)
-  {
-    /* SNK PDO for Port 0 */
-    PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.ListOfPDO[index] = PORT0_PDO_ListSNK[index];
-  }
+  PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.ListOfPDO = (uint32_t *)PORT0_PDO_ListSNK;
   PWR_Port_PDO_Storage[USBPD_PORT_0].SinkPDO.NumberOfPDO = USBPD_NbPDO[0];
 
   _status |= USBPD_PWR_IF_CheckUpdateSNKPower(USBPD_PORT_0);
@@ -414,11 +398,11 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
          DPM_USER_Settings[PortNum]
              .DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits);
 
-  _PWR_CHECK_VOLTAGE_MIN(_min_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MinOperatingVoltageInmVunits);
-  _PWR_CHECK_VOLTAGE_MAX(_max_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingVoltageInmVunits);
-  _PWR_CHECK_CURRENT_MAX(_max_current, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits);
+  // _PWR_CHECK_VOLTAGE_MIN(_min_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MinOperatingVoltageInmVunits);
+  // _PWR_CHECK_VOLTAGE_MAX(_max_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingVoltageInmVunits);
+  // _PWR_CHECK_CURRENT_MAX(_max_current, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits);
   _max_power = (_max_voltage * _max_current) / 1000;
-  _PWR_CHECK_POWER_MAX(_max_power, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingPowerInmWunits);
+  // _PWR_CHECK_POWER_MAX(_max_power, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingPowerInmWunits);
 
   return _status;
 }
