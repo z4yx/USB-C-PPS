@@ -142,8 +142,6 @@ AS_INCLUDES =  \
 # C includes
 C_INCLUDES =  \
 -IInc \
--IUtilities/GUI_INTERFACE \
--IUtilities/TRACER_EMB \
 -IDrivers/BSP/Components/Common \
 -IDrivers/BSP/STM32G071B-Discovery \
 -IDrivers/STM32G0xx_HAL_Driver/Inc \
