@@ -984,7 +984,7 @@ static void DEMO_Manage_event(uint32_t Event)
           _tab_menu_val = MENU_MEASURE;
           Display_menuupdate_info(_tab_menu_val);
           /* start a timer to delay request to avoid ony conflict with request coming from oposite part */
-          xTimerStart( xTimers, 0 );
+          // xTimerStart( xTimers, 0 );
           _tab_connect_status = 2;
         }
         break;
