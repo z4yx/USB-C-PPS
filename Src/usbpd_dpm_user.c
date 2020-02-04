@@ -20,6 +20,7 @@
 #define USBPD_DPM_USER_C
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "common.h"
 #include "usbpd_dpm_conf.h"
 #include "usbpd_pwr_if.h"
 #include "demo_disco.h"
@@ -257,7 +258,7 @@ void USBPD_DPM_UserCableDetection(uint8_t PortNum, USBPD_CAD_EVENT State)
 /* USER CODE BEGIN USBPD_DPM_UserCableDetection */
   DEMO_PostCADMessage(PortNum, State, DPM_Params[PortNum].ActiveCCIs);
 
-  printf("USBPD_DPM_UserCableDetection %d\r\n", State);
+  DBG_MSG("USBPD_DPM_UserCableDetection %d\r\n", State);
   switch(State)
   {
   case USBPD_CAD_EVENT_ATTEMC:
@@ -359,7 +360,7 @@ void USBPD_DPM_Notification(uint8_t PortNum, USBPD_NotifyEventValue_TypeDef Even
 {
 /* USER CODE BEGIN USBPD_DPM_Notification */
   DEMO_PostNotificationMessage(PortNum, EventVal);
-  printf("USBPD_DPM_Notification %d\r\n", EventVal);
+  DBG_MSG("USBPD_DPM_Notification %d\r\n", EventVal);
 
   switch(EventVal)
   {
@@ -443,7 +444,7 @@ void USBPD_DPM_Notification(uint8_t PortNum, USBPD_NotifyEventValue_TypeDef Even
 void USBPD_DPM_GetDataInfo(uint8_t PortNum, USBPD_CORE_DataInfoType_TypeDef DataId, uint8_t *Ptr, uint32_t *Size)
 {
 /* USER CODE BEGIN USBPD_DPM_GetDataInfo */
-  printf("USBPD_DPM_GetDataInfo %d\r\n", DataId);
+  DBG_MSG("USBPD_DPM_GetDataInfo %d\r\n", DataId);
   /* Check type of information targeted by request */
   switch (DataId)
   {
@@ -496,7 +497,7 @@ void USBPD_DPM_SetDataInfo(uint8_t PortNum, USBPD_CORE_DataInfoType_TypeDef Data
 {
 /* USER CODE BEGIN USBPD_DPM_SetDataInfo */
   uint32_t index;
-  printf("USBPD_DPM_SetDataInfo %d\r\n", DataId);
+  DBG_MSG("USBPD_DPM_SetDataInfo %d\r\n", DataId);
 
   /* Check type of information targeted by request */
   switch (DataId)
@@ -650,7 +651,7 @@ void USBPD_DPM_SNK_EvaluateCapabilities(uint8_t PortNum, uint32_t *PtrRequestDat
     pdhandle->DPM_RequestedVoltage = 5000;
     return;
   }
-  printf("USBPD_DPM_SNK_EvaluateCapabilities PDO Index %d\r\n", pdoindex);
+  DBG_MSG("USBPD_DPM_SNK_EvaluateCapabilities PDO Index %d\r\n", pdoindex);
 
   DPM_SNK_BuildRDOfromSelectedPDO(PortNum, pdoindex, &snkpowerrequestdetails,&rdo, PtrPowerObjectType);
 
@@ -803,7 +804,7 @@ USBPD_StatusTypeDef USBPD_DPM_RequestMessageRequest(uint8_t PortNum, uint8_t Ind
   pdo.d32 = DPM_Ports[PortNum].DPM_ListOfRcvSRCPDO[(IndexSrcPDO - 1)];
   voltage = RequestedVoltage;
   allowablepower = (puser->DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits * RequestedVoltage) / 1000;
-  printf("USBPD_DPM_RequestMessageRequest PDO %#x\r\n", pdo.d32);
+  DBG_MSG("USBPD_DPM_RequestMessageRequest PDO %#x\r\n", pdo.d32);
 
   if (USBPD_TRUE == USBPD_DPM_SNK_EvaluateMatchWithSRCPDO(PortNum, pdo.d32, &voltage, &allowablepower))
   {
@@ -1740,7 +1741,7 @@ void DPM_ManageExtendedCapa(void)
       if (DPM_TIMER_ENABLE_MSK == DPM_Ports[_instance].DPM_TimerSRCExtendedCapa)
       {
         DPM_Ports[_instance].DPM_TimerSRCExtendedCapa = 0;
-        printf("req ext capa\r\n");
+        DBG_MSG("req ext capa\r\n");
         USBPD_DPM_RequestGetSourceCapabilityExt(_instance);
       }
   }

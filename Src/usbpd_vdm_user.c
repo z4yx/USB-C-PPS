@@ -23,7 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "stm32g0xx.h"
 #include "string.h"
-#include <stdio.h>
+#include "common.h"
 #if defined(_DEBUG_TRACE)
 #include "usbpd_trace.h"
 #endif /* _DEBUG_TRACE */
@@ -166,7 +166,7 @@ static void USBPD_VDM_InformIdentity(uint8_t PortNum, USBPD_SOPType_TypeDef SOPT
       uint8_t*  disco_ident;
       disco_ident = (uint8_t*)&DPM_Ports[PortNum].VDM_DiscoIdentify;
       memcpy(disco_ident, (uint8_t*)pIdentity, sizeof(USBPD_DiscoveryIdentity_TypeDef));
-      printf("VDM Ident ProductVDO=%#x\r\n", pIdentity->ProductVDO.d32);
+      DBG_MSG("VDM Ident ProductVDO=%#x\r\n", pIdentity->ProductVDO.d32);
 
 #if defined(_GUI_INTERFACE)
       if (USBPD_ENABLE != GUI_IsRunning())
@@ -224,7 +224,7 @@ static void USBPD_VDM_InformSVID(uint8_t PortNum, USBPD_SOPType_TypeDef SOPType,
     /* Save the received SVIDs */
     for (index = 0; index < pListSVID->NumSVIDs; index++)
     {
-      printf("VDM SVID: %#hx\r\n", pListSVID->SVIDs[index]);
+      DBG_MSG("VDM SVID: %#hx\r\n", pListSVID->SVIDs[index]);
       DPM_Ports[PortNum].VDM_SVIDPortPartner.SVIDs[DPM_Ports[PortNum].VDM_SVIDPortPartner.NumSVIDs++] = pListSVID->SVIDs[index];
     }
 
@@ -245,7 +245,7 @@ static void USBPD_VDM_InformSVID(uint8_t PortNum, USBPD_SOPType_TypeDef SOPType,
       if (USBPD_ENABLE != GUI_IsRunning())
 #endif /* _GUI_INTERFACE */
       {
-        printf("RequestMode SVID=%#hx\r\n",
+        DBG_MSG("RequestMode SVID=%#hx\r\n",
                DPM_Ports[PortNum].VDM_SVIDPortPartner.SVIDs[0]);
         USBPD_PE_SVDM_RequestMode(PortNum, USBPD_SOPTYPE_SOP, DPM_Ports[PortNum].VDM_SVIDPortPartner.SVIDs[0]);
       }
@@ -285,7 +285,7 @@ static void USBPD_VDM_InformMode(uint8_t PortNum, USBPD_SOPType_TypeDef SOPType,
       DPM_Ports[PortNum].VDM_ModesPortPartner.NumModes = pModesInfo->NumModes;
       for (uint32_t index = 0; index < DPM_Ports[PortNum].VDM_ModesPortPartner.NumModes; index++)
       {
-        printf("VDM Mode: %#x\r\n", pModesInfo->Modes[index]);
+        DBG_MSG("VDM Mode: %#x\r\n", pModesInfo->Modes[index]);
         DPM_Ports[PortNum].VDM_ModesPortPartner.Modes[index] = pModesInfo->Modes[index];
       }
 
@@ -301,7 +301,7 @@ static void USBPD_VDM_InformMode(uint8_t PortNum, USBPD_SOPType_TypeDef SOPType,
       /* All the SVIDs have been received, request discovery mode on next SVID available
       in the list */
       Remote_SVID_Mode[PortNum]++;
-      printf("RequestMode SVID=%#hx\r\n",
+      DBG_MSG("RequestMode SVID=%#hx\r\n",
               DPM_Ports[PortNum]
               .VDM_SVIDPortPartner.SVIDs[Remote_SVID_Mode[PortNum]]);
       /* Request a discovery mode */

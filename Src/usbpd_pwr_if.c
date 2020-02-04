@@ -29,9 +29,10 @@
 #include "usbpd_devices_conf.h"
 #include "usbpd_core.h"
 /* USER CODE BEGIN Include */
-#include "string.h"
-#include <stdio.h>
 #include "cmsis_os.h"
+#include "common.h"
+#include "string.h"
+
 /* USER CODE END Include */
 
 /** @addtogroup STM32_USBPD_APPLICATION
@@ -314,7 +315,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   for (uint32_t _index = 0; _index < PWR_Port_PDO_Storage[PortNum].SinkPDO.NumberOfPDO; _index++)
   {
     pdo.d32 = PWR_Port_PDO_Storage[PortNum].SinkPDO.ListOfPDO[_index];
-    printf("PDO %#x\r\n", pdo.d32);
+    DBG_MSG("PDO %#x\r\n", pdo.d32);
     switch (pdo.GenericPDO.PowerObject)
     {
       case USBPD_CORE_PDO_TYPE_FIXED:    /*!< Fixed Supply PDO                             */
@@ -353,8 +354,8 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
     }
   }
 
-  printf("PDOs: %hu~%hu mV, %hu mA\r\n", _min_voltage, _max_voltage, _max_current);
-  printf("DPM_USER_Settings: %hu~%hu mV, %hu mA\r\n",
+  DBG_MSG("PDOs: %hu~%hu mV, %hu mA\r\n", _min_voltage, _max_voltage, _max_current);
+  DBG_MSG("DPM_USER_Settings: %hu~%hu mV, %hu mA\r\n",
          DPM_USER_Settings[PortNum]
              .DPM_SNKRequestedPower.MinOperatingVoltageInmVunits,
          DPM_USER_Settings[PortNum]

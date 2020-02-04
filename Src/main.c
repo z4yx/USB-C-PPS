@@ -120,7 +120,6 @@ int main(void)
   HAL_NVIC_SetPriority(SysTick_IRQn, TICK_INT_PRIORITY ,0U);
   LL_SYSTICK_EnableIT();
   DEBUG_USART_Init();
-  printf("init ok\r\n");
   /* USER CODE END 2 */
 
   /* USBPD initialisation ---------------------------------*/
