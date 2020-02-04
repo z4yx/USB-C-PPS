@@ -836,47 +836,6 @@ USBPD_StatusTypeDef USBPD_DPM_RequestGetSourceCapability(uint8_t PortNum)
 }
 
 /**
-  * @brief  Request the PE to send a GET_SNK_CAPA message
-  * @param  PortNum The current port number
-  * @retval USBPD Status
-  */
-USBPD_StatusTypeDef USBPD_DPM_RequestGetSinkCapability(uint8_t PortNum)
-{
-  return USBPD_PE_Request_CtrlMessage(PortNum, USBPD_CONTROLMSG_GET_SNK_CAP, USBPD_SOPTYPE_SOP);
-}
-
-/**
-  * @brief  Request the PE to perform a Data Role Swap.
-  * @param  PortNum The current port number
-  * @retval USBPD Status
-  */
-USBPD_StatusTypeDef USBPD_DPM_RequestDataRoleSwap(uint8_t PortNum)
-{
-  return USBPD_PE_Request_CtrlMessage(PortNum, USBPD_CONTROLMSG_DR_SWAP, USBPD_SOPTYPE_SOP);
-}
-
-/**
-  * @brief  Request the PE to perform a Power Role Swap.
-  * @param  PortNum The current port number
-  * @retval USBPD Status
-  */
-USBPD_StatusTypeDef USBPD_DPM_RequestPowerRoleSwap(uint8_t PortNum)
-{
-  return USBPD_ERROR;
-
-}
-
-/**
-  * @brief  Request the PE to perform a VCONN Swap.
-  * @param  PortNum The current port number
-  * @retval USBPD Status
-  */
-USBPD_StatusTypeDef USBPD_DPM_RequestVconnSwap(uint8_t PortNum)
-{
-  return USBPD_PE_Request_CtrlMessage(PortNum, USBPD_CONTROLMSG_VCONN_SWAP, USBPD_SOPTYPE_SOP);
-}
-
-/**
   * @brief  Request the PE to send a soft reset
   * @param  PortNum The current port number
   * @param  SOPType SOP Type based on @ref USBPD_SOPType_TypeDef
