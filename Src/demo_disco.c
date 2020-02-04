@@ -132,47 +132,15 @@ uint16_t MessageType :                  /*!< Message Header's message Type      
 
 
 typedef enum {
-  MENU_STLOGO,
-  MENU_MAIN,
-  MENU_COMMAND,
-  MENU_START,
   MENU_PD_SPEC,
-  MENU_POWER,
-  MENU_DUAL_ROLE_POWER,
-  MENU_DATA_ROLE_SWAP,
-  MENU_UNCHUNKED_MODE,
-  MENU_DISPLAY_PORT,
   MENU_MEASURE,
   MENU_SELECT_SOURCECAPA,
-  MENU_SINKCAPA_RECEIVED,
-  MENU_EXTCAPA_RECEIVED,
-  MENU_SPY_MESSAGE,
-  MENU_VERSION
 } DEMO_MENU;
 
-typedef enum {
-  COMMAND_HARDRESET,
-  COMMAND_CONTROLMSG_GET_SRC_CAP,
-  COMMAND_CONTROLMSG_GET_SNK_CAP,
-  COMMAND_CONTROLMSG_DR_SWAP,
-  COMMAND_CONTROLMSG_SOFT_RESET,
-  COMMAND_REQUEST_VDM_DISCOVERY,
-//  COMMAND_CONTROLMSG_GET_SRC_CAPEXT,
-  COMMAND_MAX,
-} DEMO_COMMAND;
-
-
-typedef struct
-{
-  uint8_t commandid;
-  uint8_t commandstr[23];
-} typedef_COMMANDE;
 
 /* Private macro -------------------------------------------------------------*/
-#define DEMO_MAX_COMMAND  12u
 
 /* Private variables ---------------------------------------------------------*/
-uint8_t DP_info_received ;
 static uint8_t indexAPDO = 0;
 static DEMO_MENU next_menu;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
@@ -246,17 +214,6 @@ const int8_t _tab_extdata_msg[][19] = {
 };
 
 
-
-const typedef_COMMANDE g_tab_command_global[COMMAND_MAX] = {
-  { COMMAND_HARDRESET                   ,"HARD RESET        " },
-  { COMMAND_CONTROLMSG_GET_SRC_CAP      ,"GET SRC CAPA      " },
-  { COMMAND_CONTROLMSG_GET_SNK_CAP      ,"GET SNK CAPA      " },
-  { COMMAND_CONTROLMSG_DR_SWAP          ,"DATA ROLE SWAP    " },
-  { COMMAND_CONTROLMSG_SOFT_RESET       ,"SOFT RESET        " },
-  { COMMAND_REQUEST_VDM_DISCOVERY       ,"REQUEST VDM DISCO " }
-//  { COMMAND_CONTROLMSG_GET_SRC_CAPEXT   ,"GET SRCE EXT CAPA " }
-};
-
 /*  contains the id of the selected item inside a menu*/
 static uint8_t   g_tab_menu_sel = { 0 };
 /*  contains the menu selected position  */
@@ -270,38 +227,21 @@ TimerHandle_t xTimers;
 #define MAX_MSG_SIZE   4
 #define MAX_MSG_LENGHT 18
 
-int8_t tab_msg[MAX_MSG_SIZE][MAX_MSG_LENGHT];
-uint8_t index_msg = 0;
-
-/* cc state */
-CCxPin_TypeDef _cc = CCNONE;
-
 /* Counter for Sel Joystick pressed*/
 osMessageQId  DemoEvent, DemoMsgBox;
 
 /* timer for demo display */
 uint32_t demo_timeout;
-static uint8_t st_logo=0;
 
 /* Private function prototypes -----------------------------------------------*/
 
 static void Display_clear(void);
 static void string_completion(uint8_t *str);
-static const int8_t *Decode_HEADER(uint16_t Header);
-
-static void Display_sinkcapa_menu(void);
-static void Display_sinkcapa_menu_nav(int8_t Or);
 
 static void Display_sourcecapa_menu_nav(int8_t Or);
 static uint8_t Display_sourcecapa_menu_exec(void);
 
 static void Display_menu_version(void);
-
-static void Display_dual_role_power_menu(void);
-static void Display_unchunkedmode_menu(void);
-static void Display_display_port_menu(void);
-static void Display_data_role_swap_menu(void);
-static void Display_extcapa_menu_nav(int8_t Or);
 
 static void Display_command_menu(void);
 static void Display_command_menu_nav(int8_t Or);
@@ -347,29 +287,6 @@ DEMO_ErrorCode DEMO_InitTask(DEMO_MODE mode)
   osThreadCreate(osThread(STD), &DemoEvent);
 
   return DEMO_OK;
-}
-
-
-/*
- * Decode header info to string
- */
-const int8_t *Decode_HEADER(uint16_t Header)
-{
-  uint16_t _msgtype = Header & 0x1F;
-
-  if (Header & 0x8000) {
-    return _tab_extdata_msg[_msgtype];
-  }
-  else
-  {
-    // check data message
-    if (Header & 0x7000) {
-      return _tab_data_msg[_msgtype];
-    }
-
-    // Control message
-    return _tab_control_msg[_msgtype];
-  }
 }
 
 
@@ -445,10 +362,6 @@ void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
   }
 }
 
-/* stockage de l'historique des donnee de power */
-uint32_t   power_data[127];
-uint8_t    power_index = 0;
-
 /**
   * @brief  check_cc_attached
   * @param  CC1Voltage   CC1 voltage
@@ -464,27 +377,6 @@ char str[40];
 static void Display_clear(void)
 {
   BSP_LCD_Clear(LCD_COLOR_BLACK);
-}
-
-/**
-  * @brief  Display clear info
-  * @retval None
-  */
-static void Display_stlogo(void)
-{
-  if (st_logo < 10)
-  {
-    st_logo ++;
-  }
-  else if (st_logo ==10)
-  {
-    st_logo ++;
-    BSP_LCD_SetFont(&Font16);
-    BSP_LCD_DisplayStringAt(0,1*16, (uint8_t*)"STM32G0",CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0,2*16, (uint8_t*)"Disco Kit",CENTER_MODE);
-    BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"SINK",CENTER_MODE);
-  }
-  
 }
 
 /**
@@ -587,28 +479,10 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
 static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 {
   /* Standalone mode */
-  {
-    if(MENU_START == MenuId)
-    {
-      return MENU_PD_SPEC;
-    }
-    if(MENU_START == MenuId)                                            return MENU_PD_SPEC;
-    if((MENU_PD_SPEC == MenuId)&& (DPM_Ports[0].DPM_NumberOfRcvSRCPDO >0)) return MENU_POWER;   // PD CONFIG
-    if((MENU_PD_SPEC == MenuId)&& (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO)) return MENU_MEASURE; // No PD config
-    if(MENU_POWER == MenuId)                                            return MENU_DUAL_ROLE_POWER;
-    if(MENU_DUAL_ROLE_POWER == MenuId)                                  return MENU_UNCHUNKED_MODE;
-    if(MENU_UNCHUNKED_MODE == MenuId)                                   return MENU_DATA_ROLE_SWAP;
-    if(MENU_DATA_ROLE_SWAP == MenuId)                                   return MENU_DISPLAY_PORT;
-    if(MENU_DISPLAY_PORT == MenuId)                                     return MENU_MEASURE;
-    if((MENU_MEASURE == MenuId)&& (DPM_Ports[0].DPM_NumberOfRcvSRCPDO >0)) return MENU_SELECT_SOURCECAPA;// PD CONFIG
-    if((MENU_MEASURE == MenuId)&& (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO)) return MENU_VERSION;          // no PD CONFIG
-    if(MENU_SELECT_SOURCECAPA == MenuId)                                return MENU_SINKCAPA_RECEIVED;
-    if(MENU_SINKCAPA_RECEIVED == MenuId)                                return MENU_COMMAND;
-    if(MENU_COMMAND == MenuId)                                          return MENU_VERSION;
-    if(MENU_VERSION == MenuId)                                          return MENU_VERSION;
-  }
+  if(MENU_MEASURE == MenuId) return MENU_SELECT_SOURCECAPA;
+  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_MEASURE;
 
-  return MENU_VERSION;
+  return MENU_PD_SPEC;
 }
 
 /**
@@ -619,141 +493,10 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 static DEMO_MENU Menu_manage_prev(uint8_t MenuId)
 {
   /* Standalone mode */
-  {
-    if(MENU_START == MenuId)                            return MENU_START;
-    if(MENU_PD_SPEC == MenuId)                          return MENU_START;
-    if(MENU_POWER == MenuId)                            return MENU_PD_SPEC;
-    if(MENU_DUAL_ROLE_POWER == MenuId)                  return MENU_POWER;
-    if(MENU_UNCHUNKED_MODE == MenuId)                   return MENU_DUAL_ROLE_POWER;
-    if(MENU_DATA_ROLE_SWAP == MenuId)                   return MENU_UNCHUNKED_MODE;
-    if(MENU_DISPLAY_PORT == MenuId)                     return MENU_DATA_ROLE_SWAP;
-    if((MENU_MEASURE == MenuId) && (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))  return MENU_PD_SPEC;      // If not PD device
-    if((MENU_MEASURE == MenuId) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO>0))     return MENU_DISPLAY_PORT; // If PD device
-    if(MENU_SELECT_SOURCECAPA == MenuId)                return MENU_MEASURE;
-    if(MENU_SINKCAPA_RECEIVED == MenuId)                return MENU_SELECT_SOURCECAPA;
-    if(MENU_COMMAND == MenuId)                          return MENU_SINKCAPA_RECEIVED;
+  if(MENU_MEASURE == MenuId) return MENU_SELECT_SOURCECAPA;
+  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_MEASURE;
 
-    if((MENU_VERSION == MenuId) && (0 == DPM_Ports[0].DPM_NumberOfRcvSRCPDO))     return MENU_MEASURE; // If not PD device
-    if((MENU_VERSION == MenuId) && (DPM_Ports[0].DPM_NumberOfRcvSRCPDO>0))     return MENU_COMMAND; // If PD device
-  }
-  st_logo=10;
-  return MENU_STLOGO;
-}
-
-/**
-  * @brief  snk capa menu display
-  * @retval None
-  */
-static void Display_sinkcapa_menu(void)
-{
-  uint8_t _str[19];
-
-  /* Display menu sink capa */
-  sprintf((char*)_str, "Distant Sink capa:");
-  BSP_LCD_DisplayStringAtLine(0, _str);
-  if ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRP_SUPPORT_Msk) /* if DRP */
-  {
-    Display_sinkcapa_menu_nav(0);
-  }
-  else /* not DRP */
-  {
-    sprintf((char*)_str, "Connected to");
-    BSP_LCD_DisplayStringAtLine(2 ,_str);
-    sprintf((char*)_str, "source only");
-    BSP_LCD_DisplayStringAtLine(3 ,_str);
-    sprintf((char*)_str, "No sink capa");
-    BSP_LCD_DisplayStringAtLine(4 ,_str);
-  }
-}
-
-/**
-  * @brief  snk capa menu navigation
-  * @param  Nav
-  * @retval None
-  */
-static void Display_sinkcapa_menu_nav(int8_t Nav)
-{
-  uint8_t _str[25];
-  uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSNKPDO;
-  uint8_t _start, _end, _pos = 0;
-
-  if (0 == DPM_Ports[0].DPM_NumberOfRcvSNKPDO)
-  {
-    sprintf((char*)_str, "No sink capa");
-    BSP_LCD_DisplayStringAtLine(2 ,_str);
-  }
-  else
-  {
-      Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
-    
-    for(int8_t index=_start; index < _end; index++)
-    {
-      switch(DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_TYPE_Msk)
-      {
-      case USBPD_PDO_TYPE_FIXED :
-        {
-          uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos)*10;
-          uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >> USBPD_PDO_SRC_FIXED_VOLTAGE_Pos)*50;
-          sprintf((char*)_str, "FIXED:%2dV %2d.%dA ",(int)(maxvoltage/1000), (int)(maxcurrent/1000), (int)((maxcurrent % 1000)/100));
-        }
-        break;
-
-      case USBPD_PDO_TYPE_BATTERY :
-        {
-          uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_BATTERY_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_BATTERY_MAX_VOLTAGE_Pos) * 50;
-          uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_BATTERY_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_BATTERY_MIN_VOLTAGE_Pos) * 50;
-          uint32_t maxpower = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_BATTERY_MAX_POWER_Msk) >> USBPD_PDO_SRC_BATTERY_MAX_POWER_Pos) * 250;
-          if (maxpower==100000)  /* 100W */
-          {
-            sprintf((char*)_str, "B:%2d.%1d-%2d.%1dV %2dW",(int) (minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxpower/1000));
-          }
-          else
-          {
-            sprintf((char*)_str, "B:%2d.%1d-%2d.%1dV %2d.%dW",(int) (minvoltage/1000),(int)(minvoltage/100)%10,(int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxpower/1000), (int)(maxpower/100)%10);
-          }
-        }
-        break;
-      case USBPD_PDO_TYPE_VARIABLE :
-        {
-          uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Pos) * 50;
-          uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_VARIABLE_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_VARIABLE_MIN_VOLTAGE_Pos) * 50;
-          uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Pos) * 10;
-          sprintf((char*)_str, "V:%2d.%1d-%2d.%1dV %2d.%1dA ", (int)(minvoltage/1000),(int)(minvoltage/100)%10,(int) (maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxcurrent/1000),(int)(maxcurrent/100)%10);
-        }
-        break;
-      case USBPD_PDO_TYPE_APDO :
-        {
-          uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos) * 100;
-          uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos) * 100;
-          uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSNKPDO[index] & USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos) * 50;
-          sprintf((char*)_str, "A:%2d.%1d-%2d.%1dV %2d.%dA ", (int)(minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxcurrent/1000), (int)((maxcurrent / 100)%10));
-        }
-        break;
-      default :
-        sprintf((char*)_str,"Unknown Sink PDO type");
-        break;
-      }
-
-      {
-        if((index - _start) == g_tab_menu_pos)
-        {
-          BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-          BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-        }
-      }
-      string_completion(_str);
-      BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t*)_str);
-
-      {
-        if((index - _start) == g_tab_menu_pos)
-        {
-          BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
-          BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-        }
-      }
-    }
-
-  }
+  return MENU_PD_SPEC;
 }
 
 /**
@@ -874,106 +617,6 @@ static void Display_sourcecapa_menu_nav(int8_t Nav)
   }
 }
 
-/**
-  * @brief  ext capa menu display
-  * @retval None
-  */
-static void Display_extcapa_menu(void)
-{
-  uint8_t str[30];
-
-  /* Display menu source capa */
-  sprintf((char *)str, "Extended capa :   ");
-  BSP_LCD_DisplayStringAtLine(1, str);
-
-  Display_extcapa_menu_nav(0);
-}
-
-/**
-  * @brief  ext capa menu navigation
-  * @param  Orientation
-  * @retval None
-  */
-static void Display_extcapa_menu_nav(int8_t Orientation)
-{
-  uint8_t _str[16][19];
-  uint8_t _max = 16;  /* Nb field inside extended capa */
-  uint8_t _start, _end;
-  uint8_t _position = 0;
-
-  memset(_str, 0, sizeof(_str));
-
-  sprintf((char *)_str[0], "VID:0x%x",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.VID);
-  sprintf((char *)_str[1], "PID:0x%x",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.PID);
-  sprintf((char *)_str[2], "XID:0x%lx",     DPM_Ports[0].DPM_RcvSRCExtendedCapa.XID);
-  sprintf((char *)_str[3], "F rev:0x%x",    DPM_Ports[0].DPM_RcvSRCExtendedCapa.FW_revision);
-  sprintf((char *)_str[4], "H rev:0x%x",    DPM_Ports[0].DPM_RcvSRCExtendedCapa.HW_revision);
-  sprintf((char *)_str[5], "V reg:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.Voltage_regulation);
-  sprintf((char *)_str[6], "Htime:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.Holdup_time);
-  sprintf((char *)_str[7], "Compliance:%d", DPM_Ports[0].DPM_RcvSRCExtendedCapa.Compliance);
-  sprintf((char *)_str[8], "Tcurre:%d",     DPM_Ports[0].DPM_RcvSRCExtendedCapa.TouchCurrent);
-  sprintf((char *)_str[9], "Peak1:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.PeakCurrent1);
-  sprintf((char *)_str[10],"Peak2:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.PeakCurrent2);
-  sprintf((char *)_str[11],"Peak3:%d" ,     DPM_Ports[0].DPM_RcvSRCExtendedCapa.PeakCurrent3);
-  sprintf((char *)_str[12],"Ttemp:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.Touchtemp);
-  sprintf((char *)_str[13],"SRCin:%d",      DPM_Ports[0].DPM_RcvSRCExtendedCapa.Source_inputs);
-  sprintf((char *)_str[14],"Nbbatt:%d",     DPM_Ports[0].DPM_RcvSRCExtendedCapa.NbBatteries);
-  sprintf((char *)_str[15],"PDP:%d",        DPM_Ports[0].DPM_RcvSRCExtendedCapa.SourcePDP);
-
-  Menu_manage_selection(_max, MAX_LINE_EXTCAPA, &_start, &_end, Orientation);
-
-  for(int8_t index=_start; index < _end; index++)
-  {
-    if((index - _start) == g_tab_menu_pos)
-    {
-      BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-      BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    }
-
-    string_completion(_str[index]);
-    BSP_LCD_DisplayStringAtLine(2 +  _position++, (uint8_t*)_str[index]);
-
-    if((index - _start) == g_tab_menu_pos)
-    {
-      BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
-      BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-    }
-  }
-}
-
-/**
-  * @brief  command menu display
-  * @retval None
-  */
-static void Display_command_menu(void)
-{
-  /* Menu command display */
-  BSP_LCD_SetFont(&Font12);
-
-  /* Display menu command */
-  BSP_LCD_DisplayStringAtLine(0, (uint8_t*)"Select a command: ");
-
-  Display_command_menu_nav(0);
-}
-
-static void Display_start_menu(void)
-{
-  BSP_LCD_SetFont(&Font16);
-  {
-    BSP_LCD_DisplayStringAt(0,1*16, (uint8_t*)"Attached to",CENTER_MODE);
-    if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRP_SUPPORT_Msk))
-    {
-      BSP_LCD_DisplayStringAt(0,2*16, (uint8_t*)"a Dual Role",CENTER_MODE);
-      BSP_LCD_SetFont(&Font12);
-      BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"Power Source",CENTER_MODE);
-    }
-    else
-    {
-      BSP_LCD_DisplayStringAt(0,2*16, (uint8_t*)"a Power",CENTER_MODE);
-      BSP_LCD_DisplayStringAt(0,3*16, (uint8_t*)"Source",CENTER_MODE);
-    }
-  }
-}
 
 static void Display_pd_spec_menu(void)
 {
@@ -1009,75 +652,6 @@ static void Display_pd_spec_menu(void)
     } 
 }
 
-static void Display_power_menu(void)
-{
-  char str[20];
-  uint32_t maxvoltage, maxcurrent, maxpower;
-  maxvoltage =0;
-  maxcurrent =0;
-  maxpower = 0;
-  uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
-
-  /* Menu command display */
-  BSP_LCD_SetFont(&Font16);
-
-  /* Display menu command */
-  sprintf((char *)str, "%d power",_max);
-  BSP_LCD_DisplayStringAt(0,0*16+10, (uint8_t *)str, CENTER_MODE);
-  if (_max <= 1)
-  {
-    BSP_LCD_DisplayStringAt(0,1*16+10, (uint8_t*)"profile", CENTER_MODE);
-  }
-  else
-  {
-    BSP_LCD_DisplayStringAt(0,1*16+10, (uint8_t*)"profiles", CENTER_MODE);
-  }
-
-for(int8_t index=0; index < _max; index++)
-  {
-    uint32_t _max_power_temp = 0U;
-    switch(DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)
-    {
-    case USBPD_PDO_TYPE_FIXED :
-      {
-      maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos)*10;
-      maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >> USBPD_PDO_SRC_FIXED_VOLTAGE_Pos)*50;
-      _max_power_temp = maxcurrent * maxvoltage;
-      }
-      break;
-    case USBPD_PDO_TYPE_BATTERY :
-      {
-        _max_power_temp = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_BATTERY_MAX_POWER_Msk) >> USBPD_PDO_SRC_BATTERY_MAX_POWER_Pos) * 250;
-      }
-      break;
-    case USBPD_PDO_TYPE_VARIABLE :
-      {
-        maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Pos) * 50;
-        maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Pos) * 10;
-        _max_power_temp = maxvoltage * maxcurrent;
-      }
-      break;
-    case USBPD_PDO_TYPE_APDO :
-      {
-        maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos) * 100;
-        maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos) * 50;
-        _max_power_temp = maxvoltage * maxcurrent;
-      }
-      break;
-    default :
-      break;
-    }
-    if (_max_power_temp > maxpower)
-    {
-      maxpower = _max_power_temp;
-    }
-  }
-
-  sprintf((char *)str, "max %2d.%01d W",(int)(maxpower/1000000),(int)(maxpower%1000000)/100000);
-  BSP_LCD_DisplayStringAt(0,2*16+10, (uint8_t *)str, CENTER_MODE);
-
-}
-
 static void Display_measure_menu(void)
 {
   char str[20];
@@ -1109,220 +683,6 @@ static void Display_measure_menu(void)
 }
 
 /**
-  * @brief  Display dual role power capabilities
-  * @retval None
- **/
-static void Display_dual_role_power_menu()
-{
-  uint8_t _str[20];
-
-  BSP_LCD_SetFont(&Font16);
-  sprintf((char *)_str, "Dual Role");
-  BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-  sprintf((char *)_str, "Power (DRP)");
-  BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-  BSP_LCD_SetFont(&Font16);
-
-  /* Display the dual role power capabilities */
-  if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRP_SUPPORT_Msk))
-  {
-    sprintf((char *)_str, ": YES");
-  }
-  else
-  {
-    sprintf((char *)_str, ": NO");
-  }
-
-  BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-}
-
-/**
-  * @brief  Display Unchunked Mode capabilities
-  * @retval None
-  **/
-static void Display_unchunkedmode_menu()
-{
-  uint8_t _str[20];
-
-  BSP_LCD_SetFont(&Font16);
-  sprintf((char *)_str, "Unchunked");
-  BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-  sprintf((char *)_str, "Mode(UNCKD)");
-  BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-
-  /* Display the fast role swap capabilities */
-  if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SRC_FIXED_UNCHUNK_SUPPORTED))
-  {
-    sprintf((char *)_str, ": YES");
-  }
-  else
-  {
-    sprintf((char *)_str, ": NO");
-  }
-
-  BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-}
-
-/**
-  * @brief  Display data role swap capabilities
-  * @retval None
- **/
-static void Display_data_role_swap_menu()
-{
-  uint8_t _str[20];
-  uint8_t line_offset=0;
-  
-  /* Display the data role swap capabilities */
-  if((DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0) && ( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SNK_FIXED_DRD_SUPPORT_Msk))
-  {
-    BSP_LCD_SetFont(&Font16);
-    sprintf((char *)_str, "Dual Role");
-    BSP_LCD_DisplayStringAt(0,0*16+line_offset, _str, CENTER_MODE);
-    sprintf((char *)_str, "Data (DRD)");
-    BSP_LCD_DisplayStringAt(0,1*16+line_offset, _str, CENTER_MODE);
-    sprintf((char *)_str, ": YES");
-    BSP_LCD_DisplayStringAt(0,2*16+line_offset, _str, CENTER_MODE);
-    
-    {
-      if (DPM_Params[0].PE_DataRole == 0)
-      {
-        sprintf((char *)_str, "Disco :UFP");
-      }
-      else
-      {
-        sprintf((char *)_str, "Disco :DFP");
-      }
-      BSP_LCD_DisplayStringAt(0,3*16, _str, CENTER_MODE);    
-    }
-  }
-  else /* Data role swap not supported */
-  {
-    BSP_LCD_SetFont(&Font16);
-    sprintf((char *)_str, "Dual Role");
-    BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-    sprintf((char *)_str, "Data (DRD)");
-    BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-    sprintf((char *)_str, ": NO");
-    BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-  }
-  
-}
-
-/**
-  * @brief  Display display port capabilities
-  * @retval None
-**/
-static void Display_display_port_menu()
-{
-  uint8_t _str[20];                             
-  uint8_t DP_supported=0;
-  uint8_t Thunderbolt_supported=0;
-
-  /* Display the display port capabilities */
-  BSP_LCD_SetFont(&Font16);
-  sprintf((char *)_str, "                 ");
-  BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-  _str[0]=0;
-  if ((DP_info_received == 1) && (1 == DPM_Ports[0].VDM_SVIDPortPartner.FlagAllSVIDReceived))
-  {
-    if (DPM_Ports[0].VDM_SVIDPortPartner.NumSVIDs >0 )
-    {
-      for (int i=0; i<DPM_Ports[0].VDM_SVIDPortPartner.NumSVIDs; i++)
-      {
-        if (0xFF01 == DPM_Ports[0].VDM_SVIDPortPartner.SVIDs[i])
-        {
-          DP_supported =1;
-        }
-        if (0x8087 == DPM_Ports[0].VDM_SVIDPortPartner.SVIDs[i])
-        {
-          Thunderbolt_supported =1;
-        }
-      }
-      if (DP_supported + Thunderbolt_supported>1) /* if both thunderbolt and Display Port are supported */
-      {
-        BSP_LCD_SetFont(&Font12);
-        sprintf((char *)_str, "Display port and");       
-        BSP_LCD_DisplayStringAt(0,0*16, _str, CENTER_MODE);
-        BSP_LCD_SetFont(&Font16);
-        sprintf((char *)_str, "Thunderbolt");       
-        BSP_LCD_DisplayStringAt(0,1*16, _str, CENTER_MODE);
-        sprintf((char *)_str, "Support");
-        BSP_LCD_DisplayStringAt(0,2*16, _str, CENTER_MODE);
-        sprintf((char *)_str, ": YES");      
-        BSP_LCD_DisplayStringAt(0,3*16, _str, CENTER_MODE);
-      }
-      else  /* if only one is supported : either thunderbolt, or display port */
-      {
-        BSP_LCD_SetFont(&Font16);
-        if (1 == DP_supported){sprintf((char *)_str, "DisplayPort");}
-        else if (1== Thunderbolt_supported) {sprintf((char *)_str, "Thunderbolt");} 
-        else {sprintf((char *)_str, "Unknown VDM");} 
-        BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-        sprintf((char *)_str, "Support");
-        BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-        sprintf((char *)_str, ": YES");      
-        BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-      }
-    }
-    else /* in case our request was NAKed */
-    {
-      BSP_LCD_SetFont(&Font16);
-      sprintf((char *)_str, "Display port");
-      BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-      sprintf((char *)_str, "Support :");
-      BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-      sprintf((char *)_str, "No info received");
-      BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-    }
-  }
-  else
-  {
-      BSP_LCD_SetFont(&Font12);
-      sprintf((char *)_str, "no VDM info");
-      BSP_LCD_DisplayStringAt(0,0*16+10, _str, CENTER_MODE);
-      sprintf((char *)_str, "available.");
-      BSP_LCD_DisplayStringAt(0,1*16+10, _str, CENTER_MODE);
-      sprintf((char *)_str, "Run VDM disco");
-      BSP_LCD_DisplayStringAt(0,2*16+10, _str, CENTER_MODE);
-  }
-}
-
-/**
-  * @brief  command menu navigation
-  * @param  Nav (+1 -1 or 0)
-  * @retval None
-  */
-void Display_command_menu_nav(int8_t Nav)
-{
-  uint8_t _max = 0, _pos = 0;
-  uint8_t _start;
-  uint8_t _end;
-
-  _max = COMMAND_MAX;
-
-  Menu_manage_selection(_max, MAX_LINE_COMMAND, &_start, &_end, Nav);
-
-  BSP_LCD_SetFont(&Font12);
-
-  for(int8_t index=_start; index < _end; index++, _pos++)
-  {
-    if((index - _start) == g_tab_menu_pos)
-    {
-      BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-      BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-    }
-
-    BSP_LCD_DisplayStringAtLine(1 + _pos,  (uint8_t*)g_tab_command_global[index].commandstr);
-
-    if((index - _start) == g_tab_menu_pos)
-    {
-      BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
-      BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-    }
-  }
-}
-
-/**
   * @brief  manage menu display
   * @param  MenuSel
   * @retval None
@@ -1334,34 +694,8 @@ static void Display_menuupdate_info(DEMO_MENU MenuSel)
   Display_clear();
   switch(MenuSel)
   {
-  case MENU_STLOGO :
-    Display_stlogo();
-    break;
-  case MENU_MAIN : /* No Port connected so nothing to display */
-    break;
-  case MENU_COMMAND : /* Display menu command */
-    Display_command_menu();
-    break;
-  case MENU_START : /* Display menu command */
-    Display_start_menu();
-    break;
-  case MENU_POWER : /* Display menu command */
-    Display_power_menu();
-    break;
   case MENU_PD_SPEC : /* Display menu command */
     Display_pd_spec_menu();
-    break;
-  case MENU_DUAL_ROLE_POWER : /* Display menu command */
-    Display_dual_role_power_menu();
-    break;
-  case MENU_UNCHUNKED_MODE : /* Display menu command */
-    Display_unchunkedmode_menu();
-    break;
-  case MENU_DISPLAY_PORT : /* Display menu command */
-    Display_display_port_menu();
-    break;
-  case MENU_DATA_ROLE_SWAP : /* Display menu command */
-    Display_data_role_swap_menu();
     break;
   case MENU_MEASURE : /* Display menu command */
     Display_measure_menu();
@@ -1369,50 +703,8 @@ static void Display_menuupdate_info(DEMO_MENU MenuSel)
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu();
     break;
-  case MENU_SINKCAPA_RECEIVED : /* Display menu sink capa */
-    Display_sinkcapa_menu();
-    break;
-  case MENU_EXTCAPA_RECEIVED :
-    Display_extcapa_menu();
-    break;
-  case MENU_SPY_MESSAGE :
-    break;
-  case MENU_VERSION :
-    Display_menu_version();
-    break;
   }
   BSP_LCD_SetFont(&Font12);
-}
-
-/**
-  * @brief  command menu execution
-  * @retval None
-  */
-uint8_t Display_command_menu_exec(void)
-{
-  switch(g_tab_command_global[g_tab_menu_sel].commandid)
-  {
-  case COMMAND_HARDRESET :
-    next_menu = MENU_START;
-    return (USBPD_OK != USBPD_PE_Request_HardReset(0));
-  case COMMAND_CONTROLMSG_GET_SRC_CAP :
-    next_menu = MENU_SELECT_SOURCECAPA;
-    return (USBPD_OK != USBPD_PE_Request_CtrlMessage(0, USBPD_CONTROLMSG_GET_SRC_CAP, USBPD_SOPTYPE_SOP));
-  case COMMAND_CONTROLMSG_DR_SWAP :
-    next_menu = MENU_DATA_ROLE_SWAP;
-    return (USBPD_OK != USBPD_PE_Request_CtrlMessage(0, USBPD_CONTROLMSG_DR_SWAP, USBPD_SOPTYPE_SOP));
-  case COMMAND_CONTROLMSG_SOFT_RESET :
-    next_menu = MENU_START;
-    return (USBPD_OK != USBPD_PE_Request_CtrlMessage(0, USBPD_CONTROLMSG_SOFT_RESET, USBPD_SOPTYPE_SOP));
-  case COMMAND_CONTROLMSG_GET_SNK_CAP :
-    next_menu = MENU_SINKCAPA_RECEIVED;
-    return (USBPD_OK != USBPD_PE_Request_CtrlMessage(0, USBPD_CONTROLMSG_GET_SNK_CAP, USBPD_SOPTYPE_SOP));
-  case COMMAND_REQUEST_VDM_DISCOVERY :
-    next_menu = MENU_DISPLAY_PORT;
-    return (USBPD_OK != USBPD_DPM_RequestVDM_DiscoverySVID(0, USBPD_SOPTYPE_SOP));
-  default :
-    return(1);
-  }
 }
 
 /**
@@ -1515,24 +807,6 @@ uint8_t Display_sourcecapa_menu_exec(void)
 }
 
 /**
- **/
-static void Display_menu_version()
-{
-  uint8_t str_version[20];
-
-  BSP_LCD_SetFont(&Font16);
-  BSP_LCD_DisplayStringAtLine(0, (uint8_t*)"Connect ");
-  BSP_LCD_DisplayStringAtLine(1, (uint8_t*)"STM32Cube-");
-  BSP_LCD_SetFont(&Font16);
-  BSP_LCD_DisplayStringAtLine(2, (uint8_t*)"MonitorUCPD");
-
-  /* Display the version of firmware */
-  sprintf((char *)str_version, "w26.5 C");
-  BSP_LCD_SetFont(&Font8);
-  BSP_LCD_DisplayStringAtLine(7,  (uint8_t *)str_version);
-}
-
-/**
   * @brief  manage menu selection
   * @param  MenuSel
   * @param  Nav (+1, -1, 0)
@@ -1544,19 +818,9 @@ static void Display_menunav_info(uint8_t MenuSel, int8_t Nav)
   switch(MenuSel)
   {
   default :
-  case MENU_MAIN : /* No Port connected so nothing to display */
-    break;
-  case MENU_COMMAND : /* Display menu command */
-    Display_command_menu_nav(Nav);
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu_nav(Nav);
-    break;
-  case MENU_SINKCAPA_RECEIVED : /* Display menu source capa */
-    Display_sinkcapa_menu_nav(Nav);
-    break;
-  case MENU_EXTCAPA_RECEIVED : /* Display menu source capa */
-    Display_extcapa_menu_nav(Nav);
     break;
   }
   BSP_LCD_SetFont(&Font12);
@@ -1573,11 +837,7 @@ static uint8_t Display_menuexec_info(uint8_t MenuSel)
   switch(MenuSel)
   {
   default :
-  case MENU_MAIN : /* No Port connected so nothing to display */
     _exec_ok = 1; /* no command to be executed : exit error */
-    break;
-  case MENU_COMMAND : /* Display menu command */
-    _exec_ok = Display_command_menu_exec();
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     _exec_ok = Display_sourcecapa_menu_exec();
@@ -1595,7 +855,7 @@ static uint8_t Display_menuexec_info(uint8_t MenuSel)
   */
 static void DEMO_Manage_event(uint32_t Event)
 {
-  static DEMO_MENU _tab_menu_val = MENU_START;
+  static DEMO_MENU _tab_menu_val = MENU_PD_SPEC;
   static uint8_t   _tab_connect_status = 0;
 
   switch(Event & DEMO_MSG_TYPE_MSK)
@@ -1660,16 +920,14 @@ static void DEMO_Manage_event(uint32_t Event)
          _tab_connect_status = 1;
          indexAPDO = 0;
          BSP_LED_On(LED4);
-         _tab_menu_val = MENU_START;
+         _tab_menu_val = MENU_PD_SPEC;
          demo_timeout = HAL_GetTick();
          Display_menuupdate_info(_tab_menu_val);
-         st_logo =10;
          break;
        case USBPD_CAD_EVENT_DETACHED :
          _tab_connect_status = 0;
-         st_logo =10;
          pe_disabled = 0; /* reset PE status information for no PD device attached */
-         _tab_menu_val = MENU_STLOGO;
+         _tab_menu_val = MENU_PD_SPEC;
          Display_menuupdate_info(_tab_menu_val);
          
          BSP_LED_Off(LED4);
@@ -1690,7 +948,7 @@ static void DEMO_Manage_event(uint32_t Event)
             if( USBPD_OK == USBPD_PE_Request_CtrlMessage(0, USBPD_CONTROLMSG_GET_SNK_CAP, USBPD_SOPTYPE_SOP))
             {
               /* Request has accepted so switch to the next request */
-              DEMO_PostGetInfoMessage(0, DEMO_MSG_GETINFO_SVID);
+              // DEMO_PostGetInfoMessage(0, DEMO_MSG_GETINFO_SVID);
             }
             else
             {
@@ -1723,23 +981,17 @@ static void DEMO_Manage_event(uint32_t Event)
       case USBPD_NOTIFY_POWER_EXPLICIT_CONTRACT :
         if (_tab_connect_status == 1)
         {
-          _tab_menu_val = MENU_START;
+          _tab_menu_val = MENU_MEASURE;
           Display_menuupdate_info(_tab_menu_val);
           /* start a timer to delay request to avoid ony conflict with request coming from oposite part */
           xTimerStart( xTimers, 0 );
           _tab_connect_status = 2;
         }
         break;
-      case USBPD_NOTIFY_VDM_SVID_RECEIVED :
-        {
-          DP_info_received = 1; /* Display port info */
-          break;
-        }
       case USBPD_NOTIFY_HARDRESET_RX :
         {
-         st_logo =10;
          pe_disabled = 0; /* reset PE state information in case of no PD device attached */
-         _tab_menu_val = MENU_START;
+         _tab_menu_val = MENU_PD_SPEC;
          Display_menuupdate_info(_tab_menu_val);
          break;
         }
@@ -1750,6 +1002,7 @@ static void DEMO_Manage_event(uint32_t Event)
          Display_menuupdate_info(_tab_menu_val);
          break;
         }        
+      case USBPD_NOTIFY_VDM_SVID_RECEIVED :
       case USBPD_NOTIFY_HARDRESET_TX :
       case USBPD_NOTIFY_SNK_GOTOMIN :
       case USBPD_NOTIFY_SNK_GOTOMIN_READY :
@@ -1765,19 +1018,8 @@ static void DEMO_Manage_event(uint32_t Event)
       case USBPD_NOTIFY_POWER_SWAP_TO_SNK_DONE :
       case USBPD_NOTIFY_POWER_SWAP_TO_SRC_DONE :
       case USBPD_NOTIFY_POWER_SWAP_REJ :
-        break;
       case USBPD_NOTIFY_DATAROLESWAP_UFP:
-        {
-          _tab_menu_val = MENU_DATA_ROLE_SWAP;
-          Display_menuupdate_info(_tab_menu_val);
-          break;
-        }
       case USBPD_NOTIFY_DATAROLESWAP_DFP:
-        {
-          _tab_menu_val = MENU_DATA_ROLE_SWAP;
-          Display_menuupdate_info(_tab_menu_val);
-          break;
-        }
       case USBPD_NOTIFY_REQUEST_ENTER_MODE :
       case USBPD_NOTIFY_REQUEST_ENTER_MODE_ACK :
       case USBPD_NOTIFY_REQUEST_ENTER_MODE_NAK :
@@ -1800,8 +1042,7 @@ static void DEMO_Manage_event(uint32_t Event)
 
 void DEMO_Task_Standalone(void const *arg)
 {
-  st_logo=10;
-  Display_stlogo();
+  Display_pd_spec_menu();
 
   /* Create a timer to ask PE stack request delayed of 200ms after the EXPLICIT contract */
   xTimers = xTimerCreate
