@@ -49,7 +49,7 @@ typedef enum {
 #define DEMO_MMI_ACTION_HPD_DETECT_HIGH_PORT1 (7u << DEMO_MMI_ACTION_Pos)
 #define DEMO_MMI_ACTION_HPD_DETECT_LOW_PORT1  (8u << DEMO_MMI_ACTION_Pos)
 #define DEMO_MMI_ACTION_DISPLAY_VBUS_IBUS     (9u << DEMO_MMI_ACTION_Pos)
-#define DEMO_MMI_ACTION_JOY_PRESS             (10u << DEMO_MMI_ACTION_Pos)
+#define DEMO_MMI_ACTION_SEL_LONGPRESS         (10u << DEMO_MMI_ACTION_Pos)
 
 /*
  * Number af thread defined by user to include in the low power control

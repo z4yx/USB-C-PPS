@@ -135,6 +135,8 @@ typedef enum {
   MENU_PD_SPEC,
   MENU_MEASURE,
   MENU_SELECT_SOURCECAPA,
+  MENU_PPS_ADJUST,
+  MENU_INVALID,
 } DEMO_MENU;
 
 
@@ -142,7 +144,6 @@ typedef enum {
 
 /* Private variables ---------------------------------------------------------*/
 static uint8_t indexAPDO = 0;
-static DEMO_MENU next_menu;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
 
 /*  contains the id of the selected item inside a menu*/
@@ -168,7 +169,7 @@ uint32_t demo_timeout;
 static void Display_clear(void);
 static void string_completion(uint8_t *str);
 
-static void Display_sourcecapa_menu_nav(int8_t Or);
+static void Display_sourcecapa_menu_nav(uint8_t Or);
 static uint8_t Display_sourcecapa_menu_exec(void);
 
 static void Display_menu_version(void);
@@ -288,7 +289,7 @@ static void Display_clear(void)
   * @param  LineMax     MAX line
   * @param  Start       Pointer on Start
   * @param  End         Pointer on end
-  * @param  Orientation Orientation
+  * @param  Orientation Orientation (DEMO_MMI_ACTION_UP_PRESS, DEMO_MMI_ACTION_DOWN_PRESS)
   * @retval None
   */
 static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *Start, uint8_t *End, int8_t Orientation)
@@ -296,7 +297,7 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
   *Start = 0;
   *End   = *Start + LineMax;
 
-  if(( Orientation == 0 ) || (IndexMax == 0))
+  if(( Orientation != DEMO_MMI_ACTION_UP_PRESS && Orientation!= DEMO_MMI_ACTION_DOWN_PRESS) || (IndexMax == 0))
   {
     *Start = 0;
     *End =(LineMax > IndexMax)? IndexMax: LineMax;
@@ -304,7 +305,7 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
     return;
   }
 
-  if( -1 == Orientation)
+  if( DEMO_MMI_ACTION_UP_PRESS == Orientation)
   {
     if(0 == g_tab_menu_sel)
     {
@@ -389,20 +390,6 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 }
 
 /**
-  * @brief  get prev menu
-  * @param  MenuId
-  * @retval menuid
-  */
-static DEMO_MENU Menu_manage_prev(uint8_t MenuId)
-{
-  /* Standalone mode */
-  if(MENU_MEASURE == MenuId) return MENU_SELECT_SOURCECAPA;
-  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_MEASURE;
-
-  return MENU_PD_SPEC;
-}
-
-/**
   * @brief  src capa menu display
   * @retval None
   */
@@ -440,18 +427,16 @@ static void Display_sourcecapa_menu(void)
 
 /**
   * @brief  src capa menu navigation
-  * @param  Nav
+  * @param  Nav (DEMO_MMI_ACTION_UP_PRESS, DEMO_MMI_ACTION_DOWN_PRESS)
   * @retval None
   */
-static void Display_sourcecapa_menu_nav(int8_t Nav)
+static void Display_sourcecapa_menu_nav(uint8_t Nav)
 {
   uint8_t _str[30];
   uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
   uint8_t _start, _end, _pos = 0;
 
-  {
-    Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
-  }
+  Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
 
   for(int8_t index=_start; index < _end; index++)
   {
@@ -712,10 +697,10 @@ uint8_t Display_sourcecapa_menu_exec(void)
 /**
   * @brief  manage menu selection
   * @param  MenuSel
-  * @param  Nav (+1, -1, 0)
+  * @param  Nav (up, down, left, right)
   * @retval None
   */
-static void Display_menunav_info(uint8_t MenuSel, int8_t Nav)
+static void Display_menunav_info(uint8_t MenuSel, uint8_t Nav)
 {
   BSP_LCD_SetFont(&Font12);
   switch(MenuSel)
@@ -734,20 +719,17 @@ static void Display_menunav_info(uint8_t MenuSel, int8_t Nav)
   * @param  MenuSel
   * @retval None
   */
-static uint8_t Display_menuexec_info(uint8_t MenuSel)
+static DEMO_MENU Display_menuexec_info(uint8_t MenuSel)
 {
-  uint8_t _exec_ok = 0; /* 0 = OK */
   switch(MenuSel)
   {
   default :
-    _exec_ok = 1; /* no command to be executed : exit error */
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
-    _exec_ok = Display_sourcecapa_menu_exec();
-    next_menu = MENU_MEASURE;
-    break;
+    Display_sourcecapa_menu_exec();
+    return MENU_MEASURE;
   }
-  return _exec_ok;
+  return MENU_INVALID;
 }
 
 
@@ -765,6 +747,8 @@ static void DEMO_Manage_event(uint32_t Event)
   {
   case DEMO_MSG_MMI:
     {
+      if ((Event & DEMO_MMI_ACTION_Msk) != DEMO_MMI_ACTION_NONE)
+        demo_timeout = HAL_GetTick();
       switch(Event & DEMO_MMI_ACTION_Msk)
       {
       case DEMO_MMI_ACTION_NONE:
@@ -785,31 +769,24 @@ static void DEMO_Manage_event(uint32_t Event)
           }
         }
         break;
-      case  DEMO_MMI_ACTION_RIGHT_PRESS:
+      case DEMO_MMI_ACTION_RIGHT_PRESS:
+      case DEMO_MMI_ACTION_LEFT_PRESS:
+      case DEMO_MMI_ACTION_UP_PRESS:
+      case DEMO_MMI_ACTION_DOWN_PRESS:
+        Display_menunav_info(_tab_menu_val, Event & DEMO_MMI_ACTION_Msk);
+        break;
+      case DEMO_MMI_ACTION_SEL_PRESS:
         _tab_menu_val = Menu_manage_next(_tab_menu_val);
         Display_menuupdate_info(_tab_menu_val);
-        demo_timeout = HAL_GetTick();
         break;
-      case  DEMO_MMI_ACTION_LEFT_PRESS:
-        _tab_menu_val = Menu_manage_prev(_tab_menu_val);
-        Display_menuupdate_info(_tab_menu_val);
-        demo_timeout = HAL_GetTick();
-        break;
-      case  DEMO_MMI_ACTION_UP_PRESS:       /* up /down */
-        Display_menunav_info(_tab_menu_val, -1);
-        demo_timeout = HAL_GetTick();
-        break;
-      case  DEMO_MMI_ACTION_DOWN_PRESS:
-        Display_menunav_info(_tab_menu_val, +1);
-        demo_timeout = HAL_GetTick();
-        break;
-      case DEMO_MMI_ACTION_SEL_PRESS :
-        if (Display_menuexec_info(_tab_menu_val) ==0) /* If action successfull */
+      case DEMO_MMI_ACTION_SEL_LONGPRESS:
         {
-          _tab_menu_val=next_menu;
+          DEMO_MENU next_menu = Display_menuexec_info(_tab_menu_val);
+          if (next_menu != MENU_INVALID) { /* If action successfull */
+            _tab_menu_val = next_menu;
+            Display_menuupdate_info(_tab_menu_val);
+          }
         }
-        Display_menuupdate_info(_tab_menu_val);
-        demo_timeout = HAL_GetTick();
         break;
       }
     }
@@ -1005,19 +982,28 @@ void vTimerCallback(TimerHandle_t xTimer)
     {JOY_SEL, DEMO_MMI_ACTION_SEL_PRESS},
   };
   static JOYState_TypeDef current_on = JOY_NONE;
+  const uint32_t long_press_thr = 100;
+  static uint32_t hold_time = 0;
 
   JOYState_TypeDef which = BSP_JOY_GetState();
-  if (which == current_on)
+  if (which == current_on) {
+    hold_time++;
+    if(which == JOY_SEL && hold_time == long_press_thr) {
+      osMessagePut(DemoEvent, DEMO_MSG_MMI | DEMO_MMI_ACTION_SEL_LONGPRESS, 0);
+    }
     return;
-  current_on = which;
-  if (which == JOY_NONE)
-    return;
-
-  for (int i = 0; i < JOYn; i++) {
-    if(which == joy_buttons[i].input) {
-      osMessagePut(DemoEvent, DEMO_MSG_MMI | joy_buttons[i].event, 0);
+  }
+  if (current_on != JOY_NONE) { // key released
+    if (hold_time < long_press_thr) { // short press
+      for (int i = 0; i < JOYn; i++) {
+        if (current_on == joy_buttons[i].input) {
+          osMessagePut(DemoEvent, DEMO_MSG_MMI | joy_buttons[i].event, 0);
+        }
+      }
     }
   }
+  current_on = which;
+  hold_time = 0;
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
