@@ -121,9 +121,6 @@ void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
   USBPD_DPM_TimerCounter();
-#if defined(_GUI_INTERFACE)
-  GUI_TimerCounter();
-#endif /* _GUI_INTERFACE */
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
@@ -154,6 +151,7 @@ void UCPD1_2_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
+#if 0
 /**
   * @brief  This function handles EXTI 0 and 1 interrupts.
   * @retval None
@@ -182,6 +180,7 @@ void EXTI4_15_IRQHandler(void)
 {
   HAL_GPIO_EXTI_IRQHandler(UP_JOY_PIN);
 }
+#endif
 /* USER CODE END 1 */
 
 /**

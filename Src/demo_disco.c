@@ -158,8 +158,7 @@ TimerHandle_t xTimers;
 #define MAX_MSG_SIZE   4
 #define MAX_MSG_LENGHT 18
 
-/* Counter for Sel Joystick pressed*/
-osMessageQId  DemoEvent, DemoMsgBox;
+osMessageQId  DemoEvent;
 
 /* timer for demo display */
 uint32_t demo_timeout;
@@ -195,7 +194,7 @@ uint8_t DEMO_IsSpyMode(void)
   */
 DEMO_ErrorCode DEMO_InitBSP(void)
 {
-  BSP_JOY_Init(JOY_MODE_EXTI);
+  BSP_JOY_Init(JOY_MODE_GPIO);
 
   /*##-1- Initialize the LCD #################################################*/
   /* Initialize the LCD */
@@ -211,9 +210,6 @@ DEMO_ErrorCode DEMO_InitTask(DEMO_MODE mode)
 
   osMessageQDef(DemoEvent, 30, uint32_t);
   DemoEvent = osMessageCreate(osMessageQ(DemoEvent), NULL);
-
-  osMessageQDef(DemoMsgBox,48, USBPD_Msg);
-  DemoMsgBox = osMessageCreate(osMessageQ(DemoMsgBox), NULL);
 
   osThreadCreate(osThread(STD), &DemoEvent);
 
@@ -267,30 +263,6 @@ void DEMO_PostMMIMessage(uint32_t EventVal)
 {
   uint32_t event = DEMO_MSG_MMI | EventVal;
   osMessagePut(DemoEvent, event, 0);
-}
-
-void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
-{
-  if (GPIO_Pin == LEFT_JOY_PIN)
-  {
-    DEMO_PostMMIMessage(DEMO_MMI_ACTION_LEFT_PRESS);
-  }
-  if (GPIO_Pin == RIGHT_JOY_PIN)
-  {
-    DEMO_PostMMIMessage(DEMO_MMI_ACTION_RIGHT_PRESS);
-  }
-  if (GPIO_Pin == DOWN_JOY_PIN)
-  {
-    DEMO_PostMMIMessage(DEMO_MMI_ACTION_DOWN_PRESS);
-  }
-  if (GPIO_Pin == UP_JOY_PIN)
-  {
-    DEMO_PostMMIMessage(DEMO_MMI_ACTION_UP_PRESS);
-  }
-  if (GPIO_Pin == SEL_JOY_PIN)
-  {
-    DEMO_PostMMIMessage(DEMO_MMI_ACTION_SEL_PRESS);
-  }
 }
 
 /**
@@ -914,8 +886,7 @@ static void DEMO_Manage_event(uint32_t Event)
         {
           _tab_menu_val = MENU_MEASURE;
           Display_menuupdate_info(_tab_menu_val);
-          /* start a timer to delay request to avoid ony conflict with request coming from oposite part */
-          // xTimerStart( xTimers, 0 );
+          xTimerStart( xTimers, 0 );
           _tab_connect_status = 2;
         }
         break;
@@ -975,25 +946,22 @@ void DEMO_Task_Standalone(void const *arg)
 {
   Display_pd_spec_menu();
 
-  /* Create a timer to ask PE stack request delayed of 200ms after the EXPLICIT contract */
-  xTimers = xTimerCreate
-            ( /* Just a text name, not used by the RTOS
-                 kernel. */
-              "Timer",
-               /* The timer period in ticks, must be
-                  greater than 0. */
-               300,
-               /* The timers will auto-reload themselves
-                  when they expire. */
-               0,
-               /* The ID is used to store a count of the
-                  number of times the timer has expired, which
-                  is initialised to 0. */
-               ( void * ) 0,
-                /* Each timer calls the same callback when
-                   it expires. */
-                vTimerCallback
-             );
+  xTimers = xTimerCreate(/* Just a text name, not used by the RTOS
+                            kernel. */
+                         "Timer",
+                         /* The timer period in ticks, must be
+                            greater than 0. */
+                         pdMS_TO_TICKS(20),
+                         /* The timers will auto-reload themselves
+                            when they expire. */
+                         pdTRUE,
+                         /* The ID is used to store a count of the
+                            number of times the timer has expired, which
+                            is initialised to 0. */
+                         (void *)0,
+                         /* Each timer calls the same callback when
+                            it expires. */
+                         vTimerCallback);
 
   DEMO_Manage_event(DEMO_MSG_MMI | DEMO_MMI_ACTION_NONE);
 
@@ -1026,8 +994,30 @@ static void string_completion(uint8_t *str)
 
 void vTimerCallback(TimerHandle_t xTimer)
 {
-  /* the timer has expired so if the connection is still valid, send a stack message to request a message */
-  DEMO_PostGetInfoMessage(0, DEMO_MSG_GETINFO_SNKCAPA);
+  const struct joystick_desc_t {
+    JOYState_TypeDef input;
+    uint16_t event;
+  } joy_buttons[JOYn] = {
+    {JOY_UP, DEMO_MMI_ACTION_UP_PRESS},
+    {JOY_DOWN, DEMO_MMI_ACTION_DOWN_PRESS},
+    {JOY_LEFT, DEMO_MMI_ACTION_LEFT_PRESS},
+    {JOY_RIGHT, DEMO_MMI_ACTION_RIGHT_PRESS},
+    {JOY_SEL, DEMO_MMI_ACTION_SEL_PRESS},
+  };
+  static JOYState_TypeDef current_on = JOY_NONE;
+
+  JOYState_TypeDef which = BSP_JOY_GetState();
+  if (which == current_on)
+    return;
+  current_on = which;
+  if (which == JOY_NONE)
+    return;
+
+  for (int i = 0; i < JOYn; i++) {
+    if(which == joy_buttons[i].input) {
+      osMessagePut(DemoEvent, DEMO_MSG_MMI | joy_buttons[i].event, 0);
+    }
+  }
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

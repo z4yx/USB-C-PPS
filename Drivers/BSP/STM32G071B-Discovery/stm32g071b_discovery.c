@@ -507,74 +507,6 @@ void BSP_MOSFET_Off(Mosfet_TypeDef Mosfet)
 }
 
 /**
-  * @brief  Configures Door Sensor in GPIO or EXTI modes.
-  * @param  Door_Mode door sense mode.
-  *    This parameter can be one of the following values:
-  *     @arg  DOOR_MODE_GPIO: door sense pins will be used as simple IOs
-  *     @arg  DOOR_MODE_EXTI: door sense pins will be connected to EXTI line
-  *                                 with interrupt generation capability
-  * @retval HAL_OK if all initializations are OK. Other value if error.
-  */
-uint8_t BSP_DOOR_Init(DOORMode_TypeDef Door_Mode)
-{
-  GPIO_InitTypeDef GPIO_InitStruct;
-
-  /* Enable the DOOR sense clock */
-  DOOR_SENSE_GPIO_CLK_ENABLE();
-
-  GPIO_InitStruct.Pin = DOOR_SENSE_PIN;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-
-  if (Door_Mode == DOOR_MODE_GPIO)
-  {
-    /* Configure Door sense pin as input */
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    HAL_GPIO_Init(DOOR_SENSE_PORT, &GPIO_InitStruct);
-  }
-  else if (Door_Mode == DOOR_MODE_EXTI)
-  {
-    /* Configure Door sensor pin as input with External interrupt */
-    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-    HAL_GPIO_Init(DOOR_SENSE_PORT, &GPIO_InitStruct);
-
-    /* Enable and set Door Sense EXTI Interrupt to the lowest priority */
-    HAL_NVIC_SetPriority((IRQn_Type)(DOOR_SENSE_EXTI_IRQn), 0x03, 0x00);
-    HAL_NVIC_EnableIRQ((IRQn_Type)(DOOR_SENSE_EXTI_IRQn));
-  }
-  return HAL_OK;
-}
-
-/**
-  * @brief  Unonfigures GPIO used for door sense.
-  * @retval None.
-  */
-void BSP_DOOR_DeInit(void)
-{
-  /* UnInitialized the door sense. */
-  HAL_GPIO_DeInit(DOOR_SENSE_PORT, DOOR_SENSE_PIN);
-}
-
-/**
-* @brief  Returns the current Door sense position.
-* @retval Code of the door sensor
-*         This code can be one of the following values:
-*            @arg  DOOR_OPEN
-*            @arg  DOOR_CLOSE
-*/
-DOORState_TypeDef BSP_DOOR_GetState(void)
-{
-  if (HAL_GPIO_ReadPin(DOOR_SENSE_PORT, DOOR_SENSE_PIN) == GPIO_PIN_SET)
-  {
-    return DOOR_OPEN;
-  }
-  else
-  {
-    return DOOR_CLOSE;
-  }
-}
-
-/**
   * @}
   */
 
@@ -1144,8 +1076,8 @@ void PWRMON_IO_EnableIT(uint16_t Addr, uint8_t ActiveEdge)
   HAL_GPIO_Init(ALERT_PORT[alert], &GPIO_InitStruct);
 
   /* Enable and set GPIO EXTI Interrupt to the lowest priority */
-  HAL_NVIC_SetPriority((IRQn_Type)ALERT_IRQn[alert], 0x0F, 0x0F);
-  HAL_NVIC_EnableIRQ((IRQn_Type)ALERT_IRQn[alert]);
+  // HAL_NVIC_SetPriority((IRQn_Type)ALERT_IRQn[alert], 0x0F, 0x0F);
+  // HAL_NVIC_EnableIRQ((IRQn_Type)ALERT_IRQn[alert]);
 }
 
 /**
