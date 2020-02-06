@@ -204,7 +204,7 @@ DEMO_ErrorCode DEMO_InitBSP(void)
 
 DEMO_ErrorCode DEMO_InitTask(DEMO_MODE mode)
 {
-  osThreadDef(STD, DEMO_Task_Standalone, osPriorityAboveNormal, 0, 280);
+  osThreadDef(STD, DEMO_Task_Standalone, osPriorityAboveNormal, 0, 1000);
 
   osMessageQDef(DemoEvent, 30, uint32_t);
   DemoEvent = osMessageCreate(osMessageQ(DemoEvent), NULL);
