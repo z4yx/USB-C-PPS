@@ -140,10 +140,11 @@ typedef enum {
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-static uint8_t indexAPDO = 0;
+static uint8_t indexPDO = 0;
+static uint32_t voltAPDO = 0;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
 
-/*  contains the id of the selected item inside a menu*/
+/*  contains the index of the selected item inside a menu*/
 static uint8_t   g_tab_menu_sel = { 0 };
 /*  contains the menu selected position  */
 static  int8_t   g_tab_menu_pos = { 0 };
@@ -389,7 +390,51 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 
 static void Display_PPS_menu_nav(uint8_t Nav)
 {
+  uint8_t _str[30];
+  uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
+  uint8_t _start, _end, _pos = 0;
 
+  uint32_t volt_range_low = USBPD_BOARD_MAX_VOLTAGE_MV,
+           volt_range_high = USBPD_BOARD_MIN_VOLTAGE_MV;
+
+  for (int8_t index = 0; index < _max; index++) {
+    switch (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk) {
+    case USBPD_PDO_TYPE_APDO: {
+      uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                              USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
+                             USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos) *
+                            100;
+      uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                              USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
+                             USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos) *
+                            100;
+      uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                              USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+                             USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos) *
+                            50;
+      sprintf((char *)_str, "A:%2d.%1d-%2d.%1dV %d.%dA",
+              (int)(minvoltage / 1000), (int)(minvoltage / 100) % 10,
+              (int)(maxvoltage / 1000), (int)(maxvoltage / 100) % 10,
+              (int)(maxcurrent / 1000), (int)((maxcurrent % 1000) / 100));
+      if(minvoltage < volt_range_low)
+        volt_range_low = minvoltage;
+      if(maxvoltage > volt_range_high)
+        volt_range_high = maxvoltage;
+      BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
+    } break;
+    default:
+      break;
+    }
+  }
+
+  if(volt_range_high < volt_range_low) {
+    ERR_MSG("Invalid APOD range\r\n");
+    return;
+  } else {
+    DBG_MSG("%2d.%1d-%2d.%1dV\r\n", volt_range_low, volt_range_high);
+    sprintf((char *)_str, "Range: %2d.%1d-%2d.%1dV", volt_range_low, volt_range_high);
+    BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
+  }
 }
 
 static void Display_PPS_menu(void)
@@ -430,75 +475,42 @@ static void Display_sourcecapa_menu(void)
 static void Display_sourcecapa_menu_nav(uint8_t Nav)
 {
   uint8_t _str[30];
-  uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
-  uint8_t _start, _end, _pos = 0;
+  uint8_t _max = 0;
+  uint8_t _start, _end, _pos = 0, _i_fixed_pdo = 0;
+
+  for(int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++)
+    if (USBPD_PDO_TYPE_FIXED == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
+      _max++;
 
   Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
 
-  for(int8_t index=_start; index < _end; index++)
-  {
-    switch(DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)
-    {
-    case USBPD_PDO_TYPE_FIXED :
-      {
-        uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos)*10;
-        uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >> USBPD_PDO_SRC_FIXED_VOLTAGE_Pos)*50;
-        sprintf((char*)_str, "FIXED:%2dV %2d.%dA", (int)(maxvoltage/1000), (int)(maxcurrent/1000), (int)((maxcurrent % 1000) /100));
-        break;
-      }
-    case USBPD_PDO_TYPE_BATTERY :
-      {
-        uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_BATTERY_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_BATTERY_MAX_VOLTAGE_Pos) * 50;
-        uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_BATTERY_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_BATTERY_MIN_VOLTAGE_Pos) * 50;
-        uint32_t maxpower = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_BATTERY_MAX_POWER_Msk) >> USBPD_PDO_SRC_BATTERY_MAX_POWER_Pos) * 250;
-        if ((maxpower)==100000) /* 100W */
-        {
-          sprintf((char*)_str, "B:%2d.%1d-%2d.%1dV %2dW",(int)(minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxpower/1000));
-        }
-        else
-        {
-          sprintf((char*)_str, "B:%2d.%1d-%2d.%1dV %2d.%dW", (int)(minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxpower/1000), (int)(maxpower/100)%10);
-        }
-      }
-      break;
-    case USBPD_PDO_TYPE_VARIABLE :
-      {
-        uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_VOLTAGE_Pos) * 50;
-        uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_VARIABLE_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_VARIABLE_MIN_VOLTAGE_Pos) * 50;
-        uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_VARIABLE_MAX_CURRENT_Pos) * 10;
-        sprintf((char*)_str, "V:%2d.%1d-%2d.%1dV %d.%dA", (int)(minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxcurrent/1000), (int)((maxcurrent % 1000) /100));
-      }
-      break;
-    case USBPD_PDO_TYPE_APDO :
-      {
-        uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >> USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos) * 100;
-        uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >> USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos) * 100;
-        uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos) * 50;
-        sprintf((char*)_str, "A:%2d.%1d-%2d.%1dV %d.%dA",(int) (minvoltage/1000),(int)(minvoltage/100)%10, (int)(maxvoltage/1000),(int)(maxvoltage/100)%10, (int)(maxcurrent/1000), (int)((maxcurrent % 1000) /100));
-      }
-      break;
-    default :
-      sprintf((char*)_str,"Unknown Source PDO");
-      break;
-    }
+  for (int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++) {
 
+    if (USBPD_PDO_TYPE_FIXED != (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
+      continue;
+
+    if(_start <= _i_fixed_pdo && _i_fixed_pdo < _end)
     {
-      if((index - _start) == g_tab_menu_pos)
-      {
+      uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos)*10;
+      uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >> USBPD_PDO_SRC_FIXED_VOLTAGE_Pos)*50;
+      sprintf((char*)_str, "FIXED:%2dV %2d.%dA", (int)(maxvoltage/1000), (int)(maxcurrent/1000), (int)((maxcurrent % 1000) /100));
+
+      if ((_i_fixed_pdo - _start) == g_tab_menu_pos) {
         BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
         BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
       }
-    }
-    string_completion(_str);
-    BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t*)_str);
+      string_completion(_str);
+      BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
 
-    {
-      if((index - _start) == g_tab_menu_pos)
-      {
+      if ((_i_fixed_pdo - _start) == g_tab_menu_pos) {
         BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
         BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+
+        indexPDO = index;
       }
     }
+    _i_fixed_pdo++;
+
   }
 }
 
@@ -627,13 +639,13 @@ uint8_t Display_sourcecapa_menu_exec(void)
   snk_fixed_pdo.d32 = snkpdolist[0];
 
   /* selected SRC PDO */
-  pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel];
-  DBG_MSG("selected PDO %d, type=%#x\r\n", g_tab_menu_sel, pdo.GenericPDO.PowerObject);
+  pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO];
+  DBG_MSG("selected PDO %d, type=%#x\r\n", indexPDO, pdo.GenericPDO.PowerObject);
   switch(pdo.GenericPDO.PowerObject)
   {
   case USBPD_CORE_PDO_TYPE_APDO :
-    voltage = 4500;
-    allowablepower = 4500;
+    voltage = voltAPDO;
+    allowablepower = 100;
     break;
   default:
     voltage = 0;
@@ -658,11 +670,9 @@ uint8_t Display_sourcecapa_menu_exec(void)
     rdo.d32 = 0;
     rdo.ProgRDO.CapabilityMismatch = 0;
     rdo.ProgRDO.NoUSBSuspend = 0;
-    rdo.ProgRDO.OperatingCurrentIn50mAunits = 1500 /50;
-    rdo.ProgRDO.OutputVoltageIn20mV = (4500 + (indexAPDO * 100)) /20;
-    indexAPDO++;
-    if (indexAPDO > 14) indexAPDO = 0;
-    rdo.FixedVariableRDO.ObjectPosition = g_tab_menu_sel + 1;
+    rdo.ProgRDO.OperatingCurrentIn50mAunits = 100 / 50;
+    rdo.ProgRDO.OutputVoltageIn20mV = voltAPDO / 20;
+    rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
     BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
     USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
     return(0); /* ok */
@@ -672,9 +682,9 @@ uint8_t Display_sourcecapa_menu_exec(void)
     rdo.d32 = 0;
     rdo.FixedVariableRDO.CapabilityMismatch = 0;
     rdo.FixedVariableRDO.GiveBackFlag = 0;
-    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
+    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
     rdo.FixedVariableRDO.NoUSBSuspend = 0;
-    rdo.FixedVariableRDO.ObjectPosition = g_tab_menu_sel + 1;
+    rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
     rdo.FixedVariableRDO.USBCommunicationsCapable = snk_fixed_pdo.SNKFixedPDO.USBCommunicationsCapable;
 #if defined(USBPD_REV30_SUPPORT) && defined(_UNCHUNKED_SUPPORT)
     if (USBPD_SPECIFICATION_REV2 < DPM_Params[0].PE_SpecRevision)
@@ -691,7 +701,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
 #endif /* USBPD_REV30_SUPPORT && _UNCHUNKED_SUPPORT */
 
     DBG_MSG("FIXED RDO\r\n");
-    if ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel] & USBPD_PDO_TYPE_Msk) == USBPD_PDO_TYPE_FIXED)
+    if ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO] & USBPD_PDO_TYPE_Msk) == USBPD_PDO_TYPE_FIXED)
     {
       BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
 
@@ -749,6 +759,7 @@ static DEMO_MENU Display_menuexec_info(uint8_t MenuSel)
   default :
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
+  case MENU_PPS_ADJUST:
     Display_sourcecapa_menu_exec();
     return MENU_MEASURE;
   }
@@ -821,7 +832,6 @@ static void DEMO_Manage_event(uint32_t Event)
        case USBPD_CAD_EVENT_ATTEMC :
        case USBPD_CAD_EVENT_ATTACHED :
          _tab_connect_status = 1;
-         indexAPDO = 0;
          _tab_menu_val = MENU_PD_SPEC;
          demo_timeout = HAL_GetTick();
          Display_menuupdate_info(_tab_menu_val);
