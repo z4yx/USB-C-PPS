@@ -192,6 +192,7 @@ uint8_t DEMO_IsSpyMode(void)
   */
 DEMO_ErrorCode DEMO_InitBSP(void)
 {
+  BSP_LED_Init(LED_ORANGE);
   BSP_JOY_Init(JOY_MODE_GPIO);
 
   /*##-1- Initialize the LCD #################################################*/
@@ -501,6 +502,13 @@ static void Display_sourcecapa_menu_nav(uint8_t Nav)
   }
 }
 
+static void Display_measure_menu_nav(uint8_t Nav)
+{
+  if(Nav == DEMO_MMI_ACTION_UP_PRESS)
+    BSP_LED_On(LED_ORANGE);
+  else if(Nav == DEMO_MMI_ACTION_DOWN_PRESS)
+    BSP_LED_Off(LED_ORANGE);
+}
 
 static void Display_pd_spec_menu(void)
 {
@@ -655,6 +663,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
     indexAPDO++;
     if (indexAPDO > 14) indexAPDO = 0;
     rdo.FixedVariableRDO.ObjectPosition = g_tab_menu_sel + 1;
+    BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
     USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
     return(0); /* ok */
   }
@@ -684,6 +693,8 @@ uint8_t Display_sourcecapa_menu_exec(void)
     DBG_MSG("FIXED RDO\r\n");
     if ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[g_tab_menu_sel] & USBPD_PDO_TYPE_Msk) == USBPD_PDO_TYPE_FIXED)
     {
+      BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
+
       if( USBPD_OK == USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition, voltage))
       {
         return(0); /* ok */
@@ -712,6 +723,9 @@ static void Display_menunav_info(uint8_t MenuSel, uint8_t Nav)
   switch(MenuSel)
   {
   default :
+    break;
+  case MENU_MEASURE :
+    Display_measure_menu_nav(Nav);
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu_nav(Nav);
@@ -808,7 +822,6 @@ static void DEMO_Manage_event(uint32_t Event)
        case USBPD_CAD_EVENT_ATTACHED :
          _tab_connect_status = 1;
          indexAPDO = 0;
-         BSP_LED_On(LED4);
          _tab_menu_val = MENU_PD_SPEC;
          demo_timeout = HAL_GetTick();
          Display_menuupdate_info(_tab_menu_val);
@@ -818,10 +831,8 @@ static void DEMO_Manage_event(uint32_t Event)
          pe_disabled = 0; /* reset PE status information for no PD device attached */
          _tab_menu_val = MENU_PD_SPEC;
          Display_menuupdate_info(_tab_menu_val);
-         
-         BSP_LED_Off(LED4);
-         BSP_LED_Off(LED5);
-         BSP_LED_Off(LED6);
+
+         BSP_LED_Off(LED_ORANGE);
          break;
        }
     }
