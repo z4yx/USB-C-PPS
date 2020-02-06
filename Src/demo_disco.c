@@ -379,11 +379,28 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
   */
 static DEMO_MENU Menu_manage_next(uint8_t MenuId)
 {
-  /* Standalone mode */
   if(MENU_MEASURE == MenuId) return MENU_SELECT_SOURCECAPA;
-  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_MEASURE;
+  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_PPS_ADJUST;
+  if(MENU_PPS_ADJUST == MenuId) return MENU_MEASURE;
 
   return MENU_PD_SPEC;
+}
+
+static void Display_PPS_menu_nav(uint8_t Nav)
+{
+
+}
+
+static void Display_PPS_menu(void)
+{
+  /* Display menu source APDO */
+  {
+    uint8_t _str[20];
+    sprintf((char *)_str, "Input voltage:");
+    string_completion(_str);
+    BSP_LCD_DisplayStringAtLine(0, _str);
+  }
+  Display_PPS_menu_nav(DEMO_MMI_ACTION_NONE);
 }
 
 /**
@@ -392,16 +409,16 @@ static DEMO_MENU Menu_manage_next(uint8_t MenuId)
   */
 static void Display_sourcecapa_menu(void)
 {
-  uint8_t _str[20];
 
   /* Display menu source capa */
   {
+    uint8_t _str[20];
     sprintf((char *)_str, "Select the profile:");
     string_completion(_str);
     BSP_LCD_DisplayStringAtLine(0, _str);
   }
 
-  Display_sourcecapa_menu_nav(0);
+  Display_sourcecapa_menu_nav(DEMO_MMI_ACTION_NONE);
 }
 
 /**
@@ -577,6 +594,9 @@ static void Display_menuupdate_info(DEMO_MENU MenuSel)
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu();
     break;
+  case MENU_PPS_ADJUST :
+    Display_PPS_menu();
+    break;
   }
   BSP_LCD_SetFont(&Font12);
 }
@@ -695,6 +715,9 @@ static void Display_menunav_info(uint8_t MenuSel, uint8_t Nav)
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu_nav(Nav);
+    break;
+  case MENU_PPS_ADJUST :
+    Display_PPS_menu_nav(Nav);
     break;
   }
   BSP_LCD_SetFont(&Font12);
