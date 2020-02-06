@@ -79,8 +79,6 @@ uint16_t MessageType :                  /*!< Message Header's message Type      
 /* Private define ------------------------------------------------------------*/
 #define STR_SIZE_MAX 18
 
-#define LCD_ALARMBOX_MESSAGES_MAX         30u
-
 /* Format of the different kind of message */
 /*   - 31-28  4 bit for the message type   */
 #define DEMO_MSG_TYPE_POS                 28u
@@ -128,7 +126,6 @@ uint16_t MessageType :                  /*!< Message Header's message Type      
 
 #define MAX_LINE_PDO      4u
 #define MAX_LINE_COMMAND  4u
-#define MAX_LINE_EXTCAPA  3u
 
 
 typedef enum {
@@ -404,24 +401,6 @@ static void Display_sourcecapa_menu(void)
     BSP_LCD_DisplayStringAtLine(0, _str);
   }
 
-  _str[0] = '\0';
-
-  if(DPM_Ports[0].DPM_NumberOfRcvSRCPDO != 0)
-  {
-    if( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SRC_FIXED_UNCHUNK_SUPPORTED)     sprintf((char *)_str, "%s UNCK", (char *)_str);
-    if( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SRC_FIXED_DRD_SUPPORT_Msk)       sprintf((char *)_str, "%s DRD", (char *)_str);
-    if( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SRC_FIXED_USBCOMM_NOT_SUPPORTED) sprintf((char *)_str, "%s USB", (char *)_str);
-    if( DPM_Ports[0].DPM_ListOfRcvSRCPDO[0] & USBPD_PDO_SRC_FIXED_DRP_SUPPORT_Msk)       sprintf((char *)_str, "%s DRP", (char *)_str);
-  }
-
-  if(_str[0] == ' ')
-  {
-    memcpy(&_str[0], &_str[1], STR_SIZE_MAX);
-  }
-
-  string_completion(_str);
-  BSP_LCD_DisplayStringAtLine(1, _str);
-
   Display_sourcecapa_menu_nav(0);
 }
 
@@ -565,9 +544,16 @@ static void Display_measure_menu(void)
   sprintf((char *)str, "%2d.%03d A",(int)_vbusCurrent/1000,(int) _vbusCurrent%1000);
   BSP_LCD_DisplayStringAt(0,1*16+10, (uint8_t *)str, CENTER_MODE);
 
-  sprintf((char *)str, "%2d.%03d W",(int)(_vbusVoltage * _vbusCurrent)/ 1000000,(int)((_vbusVoltage * _vbusCurrent)%1000000)/1000);
-  BSP_LCD_DisplayStringAt(0,2*16+10, (uint8_t *)str, CENTER_MODE);
+  // sprintf((char *)str, "%2d.%03d W",(int)(_vbusVoltage * _vbusCurrent)/ 1000000,(int)((_vbusVoltage * _vbusCurrent)%1000000)/1000);
+  // BSP_LCD_DisplayStringAt(0,2*16+10, (uint8_t *)str, CENTER_MODE);
 
+  if (!pe_disabled && DPM_Ports[0].DPM_NumberOfRcvSRCPDO > 0) {
+    sprintf((char *)str, "USB PD%s",
+            DPM_Params[0].PE_SpecRevision == USBPD_SPECIFICATION_REV3 ? "3" : "2");
+    BSP_LCD_DisplayStringAt(0, 2*16+10, (uint8_t *)str, CENTER_MODE);
+  } else {
+    BSP_LCD_DisplayStringAt(0, 2*16+10, (uint8_t *)"No USB-PD", CENTER_MODE);
+  }
 }
 
 /**
@@ -877,7 +863,7 @@ static void DEMO_Manage_event(uint32_t Event)
       case USBPD_NOTIFY_PE_DISABLED :
         {
          pe_disabled = 1; /* means that attached device is not PD : PE is disabled */
-         _tab_menu_val = MENU_PD_SPEC;
+         _tab_menu_val = MENU_MEASURE;
          Display_menuupdate_info(_tab_menu_val);
          break;
         }        
