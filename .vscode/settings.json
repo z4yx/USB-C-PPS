@@ -1,0 +1,11 @@
+{
+    "search.exclude": {
+        "**/*.lst": true,
+        "**/*.map": true,
+        "**/*.d": true,
+        "**/Release_Notes.html": true
+    },
+    "files.associations": {
+        "usbpd_pwr_if.h": "c"
+    }
+}
