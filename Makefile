@@ -14,7 +14,7 @@
 # target
 ######################################
 TARGET = UCDC
-
+BOARD ?= G071B_Disco
 
 ######################################
 # building variables
@@ -37,9 +37,6 @@ BUILD_DIR = build
 # C sources
 C_SOURCES =  \
 $(wildcard Src/*.c) \
-$(wildcard Drivers/BSP/Components/ina230/*.c) \
-$(wildcard Drivers/BSP/Components/ssd1315/*.c) \
-$(wildcard Drivers/BSP/STM32G071B-Discovery/*.c) \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_gpio.c \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_adc.c \
 Drivers/STM32G0xx_HAL_Driver/Src/stm32g0xx_hal_adc_ex.c \
@@ -80,6 +77,14 @@ Middlewares/Third_Party/FreeRTOS/Source/timers.c \
 Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c \
 Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c \
 Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM0/port.c  
+
+ifeq ($(BOARD),G071B_Disco)
+C_SOURCES += \
+Board/G071B_Disco/demo_disco.c \
+$(wildcard Drivers/BSP/Components/ina230/*.c) \
+$(wildcard Drivers/BSP/Components/ssd1315/*.c) \
+$(wildcard Drivers/BSP/STM32G071B-Discovery/*.c)
+endif
 
 # ASM sources
 ASM_SOURCES =  \
@@ -142,8 +147,6 @@ AS_INCLUDES =  \
 # C includes
 C_INCLUDES =  \
 -IInc \
--IDrivers/BSP/Components/Common \
--IDrivers/BSP/STM32G071B-Discovery \
 -IDrivers/STM32G0xx_HAL_Driver/Inc \
 -IDrivers/STM32G0xx_HAL_Driver/Inc/Legacy \
 -IMiddlewares/ST/STM32_USBPD_Library/Core/inc \
@@ -154,6 +157,12 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Device/ST/STM32G0xx/Include \
 -IDrivers/CMSIS/Include
 
+ifeq ($(BOARD),G071B_Disco)
+C_INCLUDES += \
+-IBoard/G071B_Disco \
+-IDrivers/BSP/Components/Common \
+-IDrivers/BSP/STM32G071B-Discovery
+endif
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
