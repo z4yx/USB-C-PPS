@@ -40,8 +40,6 @@ extern "C" {
 #include "usbpd_trace.h"
 #include "cmsis_os.h"
 #include "demo_disco.h"
-#include "stm32g071b_discovery.h"
-#include "stm32g071b_discovery_pwrmon.h"
 
 #include "stdio.h"
 #include "string.h"

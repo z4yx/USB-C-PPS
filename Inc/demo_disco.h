@@ -25,7 +25,7 @@
  extern "C" {
 #endif
 
-#include "stm32g071b_discovery.h"
+#include "bsp_headers.h"
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported typedef ----------------------------------------------------------*/

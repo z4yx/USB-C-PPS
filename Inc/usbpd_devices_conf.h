@@ -36,7 +36,7 @@ extern "C" {
 #include "stm32g0xx_ll_rcc.h"
 #include "stm32g0xx_ll_tim.h"
 
-#include "stm32g071b_discovery_pwr.h"
+#include "bsp_headers.h"
 
 /* USER CODE END Includes */
 
