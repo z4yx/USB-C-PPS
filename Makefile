@@ -223,6 +223,16 @@ $(BUILD_DIR):
 	mkdir $@		
 
 #######################################
+# download
+#######################################
+
+stflash: $(BUILD_DIR)/$(TARGET).bin
+	st-flash --reset write $< 0x08000000
+
+cubeflash: $(BUILD_DIR)/$(TARGET).bin
+	STM32_Programmer_CLI -c port=SWD -w $< 0x08000000 -rst
+
+#######################################
 # clean up
 #######################################
 clean:
