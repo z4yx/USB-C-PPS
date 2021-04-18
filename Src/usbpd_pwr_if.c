@@ -31,7 +31,6 @@
 /* USER CODE BEGIN Include */
 #include "cmsis_os.h"
 #include "common.h"
-#include "string.h"
 
 /* USER CODE END Include */
 

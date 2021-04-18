@@ -4,6 +4,7 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/Inc",
+                "${workspaceFolder}/Board/USB2DC_7Seg",
                 "${workspaceFolder}/Drivers/BSP/Components/Common",
                 "${workspaceFolder}/Drivers/BSP/STM32G071B-Discovery",
                 "${workspaceFolder}/Drivers/STM32G0xx_HAL_Driver/Inc",

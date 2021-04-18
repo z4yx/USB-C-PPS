@@ -80,10 +80,14 @@ Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM0/port.c
 
 ifeq ($(BOARD),G071B_Disco)
 C_SOURCES += \
-Board/G071B_Disco/demo_disco.c \
+$(wildcard Board/G071B_Disco/*.c) \
 $(wildcard Drivers/BSP/Components/ina230/*.c) \
 $(wildcard Drivers/BSP/Components/ssd1315/*.c) \
 $(wildcard Drivers/BSP/STM32G071B-Discovery/*.c)
+endif
+ifeq ($(BOARD),USB2DC_7Seg)
+C_SOURCES += \
+$(wildcard Board/USB2DC_7Seg/*.c)
 endif
 
 # ASM sources
@@ -160,6 +164,13 @@ C_INCLUDES =  \
 ifeq ($(BOARD),G071B_Disco)
 C_INCLUDES += \
 -IBoard/G071B_Disco \
+-IDrivers/BSP/Components/Common \
+-IDrivers/BSP/STM32G071B-Discovery
+endif
+
+ifeq ($(BOARD),USB2DC_7Seg)
+C_INCLUDES += \
+-IBoard/USB2DC_7Seg \
 -IDrivers/BSP/Components/Common \
 -IDrivers/BSP/STM32G071B-Discovery
 endif

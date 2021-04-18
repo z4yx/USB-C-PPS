@@ -20,15 +20,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32g0xx.h"
-#include "demo_disco.h"
-
 #include "stm32g0xx_it.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#if defined(_TRACE) ||defined(_GUI_INTERFACE)
-#include "tracer_emb.h"
-#endif
 /* USER CODE END Includes */
 
 /** @addtogroup STM32_USBPD_APPLICATION
