@@ -243,6 +243,16 @@ stflash: $(BUILD_DIR)/$(TARGET).bin
 cubeflash: $(BUILD_DIR)/$(TARGET).bin
 	STM32_Programmer_CLI -c port=SWD -w $< 0x08000000 -rst
 
+$(BUILD_DIR)/jlink.txt: Makefile | $(BUILD_DIR)
+	@echo "r" > $@
+	@echo "loadfile $(BUILD_DIR)/$(TARGET).bin 0x08000000" >> $@
+	@echo "r" >> $@
+	@echo "go" >> $@
+	@echo "exit" >> $@
+
+jflash: $(BUILD_DIR)/$(TARGET).bin $(BUILD_DIR)/jlink.txt
+	JLinkExe -NoGui 1 -device STM32G071RB -if SWD -speed 4000 -autoconnect 1 -CommanderScript $(BUILD_DIR)/jlink.txt
+
 #######################################
 # clean up
 #######################################
