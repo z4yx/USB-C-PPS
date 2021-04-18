@@ -260,6 +260,7 @@ void UCDC_Task_Standalone(void const *arg) {
 void DEMO_InitBSP(void) {
   //   BSP_LED_Init(LED_ORANGE);
   //   BSP_JOY_Init(JOY_MODE_GPIO);
+  DBG_MSG("DEMO_InitBSP\n");
   LED_7Seg_Init();
   JoyStick_Init();
 

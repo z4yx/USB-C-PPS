@@ -1,5 +1,6 @@
 #include "bsp_headers.h"
 #include "common.h"
+#include "leds.h"
 #include "stm32g0xx_hal.h"
 
 #define VBUS_ADC hadc1
@@ -8,6 +9,7 @@
 
 ADC_HandleTypeDef VBUS_ADC;
 DMA_HandleTypeDef ADC_DMA;
+uint8_t ubADCInitSuccess;
 /* Variables for ADC conversion data */
 __IO uint16_t
     aADCxConvertedData[ADC_CONVERTED_DATA_BUFFER_SIZE]; /* ADC group regular
@@ -36,23 +38,34 @@ static void MX_ADC1_Init(void);
 void HAL_ADC_MspInit(ADC_HandleTypeDef *hadc);
 void HAL_ADC_MspDeInit(ADC_HandleTypeDef *hadc);
 
-static void Error_Handler(void) { ERR_MSG("ADC error"); }
+static void Error_Handler(void) { ERR_MSG("ADC error\n"); }
 
 void VBUS_ADC_ResultCalculation(void) {
   /* Computation of ADC conversions raw data to physical values           */
   /* using LL ADC driver helper macro.                                    */
   /* Note: ADC results are transferred into array "aADCxConvertedData"  */
   /*       in the order of their rank in ADC sequencer.                   */
-  uhADCxConvertedData_VoltageVbus_mVolt = __LL_ADC_CALC_DATA_TO_VOLTAGE(
-      VDDA_APPLI, aADCxConvertedData[0], LL_ADC_RESOLUTION_12B);
+  uint32_t vdda = __LL_ADC_CALC_VREFANALOG_VOLTAGE(aADCxConvertedData[2],
+                                                   LL_ADC_RESOLUTION_12B);
+
+  uint32_t vbus_smp = __LL_ADC_CALC_DATA_TO_VOLTAGE(vdda, aADCxConvertedData[0],
+                                                    LL_ADC_RESOLUTION_12B);
+  uhADCxConvertedData_VoltageVbus_mVolt =
+      (uint16_t)(vbus_smp * 118 / 18); // voltage divider on PCB
   hADCxConvertedData_Temperature_DegreeCelsius = __LL_ADC_CALC_TEMPERATURE(
-      VDDA_APPLI, aADCxConvertedData[1], LL_ADC_RESOLUTION_12B);
+      vdda, aADCxConvertedData[1], LL_ADC_RESOLUTION_12B);
   uhADCxConvertedData_VrefInt_mVolt = __LL_ADC_CALC_DATA_TO_VOLTAGE(
-      VDDA_APPLI, aADCxConvertedData[2], LL_ADC_RESOLUTION_12B);
+      vdda, aADCxConvertedData[2], LL_ADC_RESOLUTION_12B);
 }
 
-void BSP_PWR_VBUSDeInit(uint8_t PortNum) { HAL_ADC_DeInit(&VBUS_ADC); }
+void BSP_PWR_VBUSDeInit(uint8_t PortNum) {
+  HAL_ADC_DeInit(&VBUS_ADC);
+  ubADCInitSuccess = 0;
+}
 void BSP_PWR_VBUSInit(uint8_t PortNum) {
+  if (ubADCInitSuccess)
+    return;
+
   RCC_PeriphCLKInitTypeDef PeriphClkInit;
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
   PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
@@ -60,48 +73,63 @@ void BSP_PWR_VBUSInit(uint8_t PortNum) {
     Error_Handler();
   }
 
-  DBG_MSG("Init Vbus ADC");
+  DBG_MSG("Init Vbus ADC\n");
   MX_DMA_Init();
   MX_ADC1_Init();
 
+  DBG_MSG("ADC calibration\n");
   /* Run the ADC calibration */
   if (HAL_ADCEx_Calibration_Start(&VBUS_ADC) != HAL_OK) {
     /* Calibration Error */
     Error_Handler();
+    HAL_ADC_DeInit(&VBUS_ADC);
+    return;
   }
+  ubADCInitSuccess = 1;
 
-  /*## Start ADC conversions ###############################################*/
+  DBG_MSG("Testing ADC\n");
+  for (int i = 0; i < 10; i++) {
+    BSP_PWR_VBUSGetVoltage(0);
+    DBG_MSG("Vbus/Temp/Vref %hu %hd %hu\n",
+            uhADCxConvertedData_VoltageVbus_mVolt,
+            hADCxConvertedData_Temperature_DegreeCelsius,
+            uhADCxConvertedData_VrefInt_mVolt);
+  }
+}
+uint32_t BSP_PWR_VBUSGetVoltage(uint8_t PortNum) {
+
+  //   DBG_MSG("ADC Start DMA\n");
   /* Start ADC group regular conversion with DMA */
   if (HAL_ADC_Start_DMA(&VBUS_ADC, (uint32_t *)aADCxConvertedData,
                         ADC_CONVERTED_DATA_BUFFER_SIZE) != HAL_OK) {
     /* ADC conversion start error */
     Error_Handler();
+    HAL_ADC_DeInit(&VBUS_ADC);
+    return;
   }
-}
-uint32_t BSP_PWR_VBUSGetVoltage(uint8_t PortNum) {
-
-  /* Start ADC conversion */
-  /* Since sequencer is enabled in discontinuous mode, this will perform    */
-  /* the conversion of the next rank in sequencer.                          */
-  /* Note: For this example, conversion is triggered by software start,     */
-  /*       therefore "HAL_ADC_Start()" must be called for each conversion.  */
-  /*       Since DMA transfer has been initiated previously by function     */
-  /*       "HAL_ADC_Start_DMA()", this function will keep DMA transfer      */
-  /*       active.                                                          */
-  if (HAL_ADC_Start(&hadc1) != HAL_OK) {
-    Error_Handler();
-  }
+  //   DBG_MSG("ADCx->CR=%x ISR=%x\n", hadc1.Instance->CR, hadc1.Instance->ISR);
 
   /* Wait for ADC conversion and DMA transfer completion (update of variable
    * ubDmaTransferStatus) */
-  HAL_Delay(1);
+  //   HAL_Delay(1);
 
   /* Check whether ADC has converted all ranks of the sequence */
-  if (ubDmaTransferStatus == 1) {
-    VBUS_ADC_ResultCalculation();
-    /* Update status variable of DMA transfer */
-    ubDmaTransferStatus = 0;
+  for (int timeout = 0; timeout < 0xfffff && ubDmaTransferStatus != 1;
+       timeout++)
+    ;
+  //   DBG_MSG("ADCx->CR=%x ISR=%x\n", hadc1.Instance->CR, hadc1.Instance->ISR);
+  //   DBG_MSG("ubDmaTransferStatus=%u\n", ubDmaTransferStatus);
+  if (ubDmaTransferStatus != 1) {
+    Error_Handler();
+    return 0;
   }
+  VBUS_ADC_ResultCalculation();
+  //   DBG_MSG("Vbus/Temp/Vref %hu %hd %hu\n",
+  //   uhADCxConvertedData_VoltageVbus_mVolt,
+  //           hADCxConvertedData_Temperature_DegreeCelsius,
+  //           uhADCxConvertedData_VrefInt_mVolt);
+  /* Update status variable of DMA transfer */
+  ubDmaTransferStatus = 0;
   return uhADCxConvertedData_VoltageVbus_mVolt;
 }
 
@@ -218,7 +246,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *hadc) {
     HAL_NVIC_SetPriority(ADC1_COMP_IRQn, 3, 0);
     HAL_NVIC_EnableIRQ(ADC1_COMP_IRQn);
     /* USER CODE BEGIN ADC1_MspInit 1 */
-
+    DBG_MSG("HAL_ADC_MspInit done\n");
     /* USER CODE END ADC1_MspInit 1 */
   }
 }
@@ -273,26 +301,27 @@ static void MX_ADC1_Init(void) {
    * Alignment and number of conversion)
    */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = ADC_CONVERTED_DATA_BUFFER_SIZE;
-  hadc1.Init.DiscontinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_19CYCLES_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_7CYCLES_5;
   hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_19CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   if (HAL_ADC_Init(&hadc1) != HAL_OK) {
     Error_Handler();
+    return;
   }
   /** Configure Regular Channel
    */
@@ -301,6 +330,7 @@ static void MX_ADC1_Init(void) {
   sConfig.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
+    return;
   }
   /** Configure Regular Channel
    */
@@ -308,6 +338,7 @@ static void MX_ADC1_Init(void) {
   sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
+    return;
   }
   /** Configure Regular Channel
    */
@@ -315,6 +346,7 @@ static void MX_ADC1_Init(void) {
   sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
+    return;
   }
   /* USER CODE BEGIN ADC1_Init 2 */
 
