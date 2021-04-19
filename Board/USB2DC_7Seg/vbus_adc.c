@@ -41,21 +41,26 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *hadc);
 static void Error_Handler(void) { ERR_MSG("ADC error\n"); }
 
 void VBUS_ADC_ResultCalculation(void) {
+  // DBG_MSG("aADCxConvertedData: %hu %hu %hu\n", aADCxConvertedData[0],
+  //         aADCxConvertedData[1], aADCxConvertedData[2]);
   /* Computation of ADC conversions raw data to physical values           */
   /* using LL ADC driver helper macro.                                    */
   /* Note: ADC results are transferred into array "aADCxConvertedData"  */
   /*       in the order of their rank in ADC sequencer.                   */
-  uint32_t vdda = __LL_ADC_CALC_VREFANALOG_VOLTAGE(aADCxConvertedData[2],
+  uint32_t vdda = __LL_ADC_CALC_VREFANALOG_VOLTAGE(aADCxConvertedData[1],
                                                    LL_ADC_RESOLUTION_12B);
-
-  uint32_t vbus_smp = __LL_ADC_CALC_DATA_TO_VOLTAGE(vdda, aADCxConvertedData[0],
+  // DBG_MSG("vdda=%lu cal=%lu\n", vdda, (uint32_t)(*VREFINT_CAL_ADDR));
+  uint32_t vbus_smp = __LL_ADC_CALC_DATA_TO_VOLTAGE(vdda, aADCxConvertedData[2],
                                                     LL_ADC_RESOLUTION_12B);
   uhADCxConvertedData_VoltageVbus_mVolt =
       (uint16_t)(vbus_smp * 118 / 18); // voltage divider on PCB
   hADCxConvertedData_Temperature_DegreeCelsius = __LL_ADC_CALC_TEMPERATURE(
-      vdda, aADCxConvertedData[1], LL_ADC_RESOLUTION_12B);
+      vdda, aADCxConvertedData[0], LL_ADC_RESOLUTION_12B);
   uhADCxConvertedData_VrefInt_mVolt = __LL_ADC_CALC_DATA_TO_VOLTAGE(
-      vdda, aADCxConvertedData[2], LL_ADC_RESOLUTION_12B);
+      vdda, aADCxConvertedData[1], LL_ADC_RESOLUTION_12B);
+  // DBG_MSG("Vbus/Temp/Vref %hu %hd %hu\n", uhADCxConvertedData_VoltageVbus_mVolt,
+  //         hADCxConvertedData_Temperature_DegreeCelsius,
+  //         uhADCxConvertedData_VrefInt_mVolt);
 }
 
 void BSP_PWR_VBUSDeInit(uint8_t PortNum) {
@@ -88,8 +93,9 @@ void BSP_PWR_VBUSInit(uint8_t PortNum) {
   ubADCInitSuccess = 1;
 
   DBG_MSG("Testing ADC\n");
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 3; i++) {
     BSP_PWR_VBUSGetVoltage(0);
+    // DBG_MSG("ADCx->CFGR1=%x CHSELR=%x\n", hadc1.Instance->CFGR1, hadc1.Instance->CHSELR);
     DBG_MSG("Vbus/Temp/Vref %hu %hd %hu\n",
             uhADCxConvertedData_VoltageVbus_mVolt,
             hADCxConvertedData_Temperature_DegreeCelsius,
@@ -105,7 +111,7 @@ uint32_t BSP_PWR_VBUSGetVoltage(uint8_t PortNum) {
     /* ADC conversion start error */
     Error_Handler();
     HAL_ADC_DeInit(&VBUS_ADC);
-    return;
+    return 0;
   }
   //   DBG_MSG("ADCx->CR=%x ISR=%x\n", hadc1.Instance->CR, hadc1.Instance->ISR);
 
@@ -124,10 +130,6 @@ uint32_t BSP_PWR_VBUSGetVoltage(uint8_t PortNum) {
     return 0;
   }
   VBUS_ADC_ResultCalculation();
-  //   DBG_MSG("Vbus/Temp/Vref %hu %hd %hu\n",
-  //   uhADCxConvertedData_VoltageVbus_mVolt,
-  //           hADCxConvertedData_Temperature_DegreeCelsius,
-  //           uhADCxConvertedData_VrefInt_mVolt);
   /* Update status variable of DMA transfer */
   ubDmaTransferStatus = 0;
   return uhADCxConvertedData_VoltageVbus_mVolt;
@@ -301,10 +303,10 @@ static void MX_ADC1_Init(void) {
    * Alignment and number of conversion)
    */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV4;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_SEQ_FIXED;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
@@ -315,7 +317,7 @@ static void MX_ADC1_Init(void) {
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_7CYCLES_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
   hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_19CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
@@ -325,8 +327,8 @@ static void MX_ADC1_Init(void) {
   }
   /** Configure Regular Channel
    */
-  sConfig.Channel = ADC_CHANNEL_16;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
   sConfig.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
@@ -334,16 +336,14 @@ static void MX_ADC1_Init(void) {
   }
   /** Configure Regular Channel
    */
-  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
     return;
   }
   /** Configure Regular Channel
    */
-  sConfig.Channel = ADC_CHANNEL_VREFINT;
-  sConfig.Rank = ADC_REGULAR_RANK_3;
+  sConfig.Channel = ADC_CHANNEL_16;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
     Error_Handler();
     return;
