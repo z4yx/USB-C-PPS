@@ -12,6 +12,7 @@
 
 static osMessageQId MainEvtQueue;
 static TimerHandle_t BtnTimer;
+static TimerHandle_t DispTimer;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
 
 void vTimerCallback(TimerHandle_t xTimer) {
@@ -51,6 +52,10 @@ void vTimerCallback(TimerHandle_t xTimer) {
   hold_time = 0;
 }
 
+void dTimerCallback(TimerHandle_t xTimer)
+{
+  Seg7_Refresh();
+}
 /**
   * @brief  main demo function to manage all the appplication event and to update MMI in standalone mode
   * @param  Event
@@ -103,6 +108,7 @@ static void UCDC_Manage_event(uint32_t Event)
         //     _tab_menu_val = next_menu;
         //     Display_menuupdate_info(_tab_menu_val);
         //   }
+          LED_ToggleOutEnable();
         }
         break;
       }
@@ -172,15 +178,16 @@ static void UCDC_Manage_event(uint32_t Event)
       switch((Event & UCDC_MSG_DATA_Msk)>> UCDC_MSG_DATA_Pos)
       {
       case USBPD_NOTIFY_POWER_EXPLICIT_CONTRACT :
+        DBG_MSG("USBPD_NOTIFY_POWER_EXPLICIT_CONTRACT\n");
         if (_tab_connect_status == 1)
         {
         //   _tab_menu_val = MENU_MEASURE;
         //   Display_menuupdate_info(_tab_menu_val);
-          xTimerStart( BtnTimer, 0 );
           _tab_connect_status = 2;
         }
         break;
       case USBPD_NOTIFY_HARDRESET_RX :
+        DBG_MSG("USBPD_NOTIFY_HARDRESET_RX\n");
         {
          pe_disabled = 0; /* reset PE state information in case of no PD device attached */
         //  _tab_menu_val = MENU_PD_SPEC;
@@ -188,6 +195,7 @@ static void UCDC_Manage_event(uint32_t Event)
          break;
         }
       case USBPD_NOTIFY_PE_DISABLED :
+        DBG_MSG("USBPD_NOTIFY_PE_DISABLED\n");
         {
          pe_disabled = 1; /* means that attached device is not PD : PE is disabled */
         //  _tab_menu_val = MENU_MEASURE;
@@ -229,6 +237,23 @@ static void UCDC_Manage_event(uint32_t Event)
 void UCDC_Task_Standalone(void const *arg) {
   //   Display_pd_spec_menu();
 
+  DispTimer = xTimerCreate(/* Just a text name, not used by the RTOS
+                            kernel. */
+                          "DispTimer",
+                          /* The timer period in ticks, must be
+                             greater than 0. */
+                          pdMS_TO_TICKS(70),
+                          /* The timers will auto-reload themselves
+                             when they expire. */
+                          pdTRUE,
+                          /* The ID is used to store a count of the
+                             number of times the timer has expired, which
+                             is initialised to 0. */
+                          (void *)0,
+                          /* Each timer calls the same callback when
+                             it expires. */
+                          dTimerCallback);
+
   BtnTimer = xTimerCreate(/* Just a text name, not used by the RTOS
                             kernel. */
                           "BtnTimer",
@@ -247,6 +272,8 @@ void UCDC_Task_Standalone(void const *arg) {
                           vTimerCallback);
 
   UCDC_Manage_event(UCDC_MSG_MMI | UCDC_MMI_ACTION_NONE);
+  xTimerStart( BtnTimer, 0 );
+  xTimerStart( DispTimer, 0 );
 
   for (;;) {
     osEvent event = osMessageGet(MainEvtQueue, 100);
