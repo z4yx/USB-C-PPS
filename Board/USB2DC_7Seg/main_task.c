@@ -56,6 +56,13 @@ void dTimerCallback(TimerHandle_t xTimer)
 {
   Seg7_Refresh();
 }
+
+void Display_Measure()
+{
+  uint32_t volt = BSP_PWR_VBUSGetVoltage(0);
+  Seg7_Update(volt/10, 1<<1);
+}
+
 /**
   * @brief  main demo function to manage all the appplication event and to update MMI in standalone mode
   * @param  Event
@@ -64,6 +71,7 @@ void dTimerCallback(TimerHandle_t xTimer)
 static void UCDC_Manage_event(uint32_t Event)
 {
   static uint8_t   _tab_connect_status = 0;
+  static enum display_state_t cur_display = DISP_MEASURE;
 
   switch(Event & UCDC_MSG_TYPE_MSK)
   {
@@ -76,6 +84,10 @@ static void UCDC_Manage_event(uint32_t Event)
       case UCDC_MMI_ACTION_NONE:
         if(_tab_connect_status != 0)
         {
+          if(cur_display == DISP_MEASURE)
+          {
+            Display_Measure();
+          }
         //   if (((MENU_MEASURE == _tab_menu_val)))
         //   {
         //     Display_menuupdate_info(_tab_menu_val);
@@ -242,7 +254,7 @@ void UCDC_Task_Standalone(void const *arg) {
                           "DispTimer",
                           /* The timer period in ticks, must be
                              greater than 0. */
-                          pdMS_TO_TICKS(70),
+                          pdMS_TO_TICKS(13),
                           /* The timers will auto-reload themselves
                              when they expire. */
                           pdTRUE,

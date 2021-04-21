@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+enum display_state_t{
+     DISP_MEASURE,
+};
+
 /* Format of the different kind of message */
 /*   - 31-28  4 bit for the message type   */
 #define UCDC_MSG_TYPE_POS                 28u

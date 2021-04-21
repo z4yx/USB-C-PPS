@@ -30,6 +30,7 @@ uint16_t fast_refresh_decode[3][16];
 uint16_t fast_refresh_mask[3];
 
 static uint8_t disp_digits[4]={5,6,7,8};
+static uint8_t disp_point_mask;
 
 static void disp_digit(uint8_t digit) {
 #if 0
@@ -138,5 +139,16 @@ void Seg7_Refresh() {
 
   col = cnt & 3;
   disp_digit(disp_digits[col]);
+  HAL_GPIO_WritePin(SEG_DP_GPIO_Port, SEG_DP_Pin, !!(disp_point_mask & (1<<col)));
   HAL_GPIO_WritePin(SEG_Neg_Port[col], SEG_Neg_Pin[col], 0);
+}
+
+void Seg7_Update(uint32_t number, uint8_t point_mask)
+{
+  for (int i = 3; i >= 0; i--)
+  {
+    disp_digits[i] = number % 10;
+    number /= 10;
+  }
+  disp_point_mask = point_mask;
 }
