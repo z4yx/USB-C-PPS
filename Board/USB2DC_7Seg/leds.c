@@ -1,6 +1,10 @@
 #include "bsp_headers.h"
 #include "common.h"
 
+#define BLINK_PERIOD_BIT 6
+#define NR_SYMBOL 17
+#define SYM_BLACK 16
+
 const GPIO_TypeDef *SEG_Neg_Port[] = {
     DIG1_GPIO_Port,
     DIG2_GPIO_Port,
@@ -20,19 +24,21 @@ const GPIO_TypeDef *SEG_Pos_Port[] = {
 const uint32_t SEG_Pos_Pin[] = {
     SEG_A_Pin, SEG_B_Pin, SEG_C_Pin, SEG_D_Pin, SEG_E_Pin, SEG_F_Pin, SEG_G_Pin,
 };
-const uint8_t decode_tab[] = {
+const uint8_t decode_tab[NR_SYMBOL] = {
     0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07,
     0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71,
+    0, // SYM_BLACK
 };
 const GPIO_TypeDef *port_num2ptr[] = {GPIOA, GPIOB, GPIOC};
 
-uint16_t fast_refresh_decode[3][16];
+uint16_t fast_refresh_decode[3][NR_SYMBOL];
 uint16_t fast_refresh_mask[3];
 
-static uint8_t disp_digits[4]={5,6,7,8};
+static uint8_t disp_digits[4];
 static uint8_t disp_point_mask;
+static uint8_t disp_blink_mask;
 
-static void disp_digit(uint8_t digit) {
+static inline void disp_digit(uint8_t digit) {
 #if 0
   uint8_t decoded = decode_tab[digit];
   for (int i = 0; i < 7; i++) {
@@ -65,7 +71,7 @@ static void init_fast_refresh() {
     fast_refresh_mask[port] |= SEG_Pos_Pin[i];
 
     uint8_t seg_bit = 1u << i;
-    for (int digit = 0; digit < 16; digit++) {
+    for (int digit = 0; digit < NR_SYMBOL; digit++) {
       if ((decode_tab[digit] & seg_bit) != 0)
         fast_refresh_decode[port][digit] |= SEG_Pos_Pin[i];
     }
@@ -130,7 +136,7 @@ void LED_OutEnable(uint8_t enable) {
 void LED_ToggleOutEnable() { HAL_GPIO_TogglePin(OUT_EN_GPIO_Port, OUT_EN_Pin); }
 
 void Seg7_Refresh() {
-  static uint32_t cnt = 0;
+  static uint8_t cnt = 0;
 
   uint8_t col = cnt & 3;
   HAL_GPIO_WritePin(SEG_Neg_Port[col], SEG_Neg_Pin[col], 1);
@@ -138,17 +144,22 @@ void Seg7_Refresh() {
   cnt++;
 
   col = cnt & 3;
-  disp_digit(disp_digits[col]);
-  HAL_GPIO_WritePin(SEG_DP_GPIO_Port, SEG_DP_Pin, !!(disp_point_mask & (1<<col)));
+  bool black =
+      (disp_blink_mask & (1 << col)) && (cnt & (1 << BLINK_PERIOD_BIT));
+  disp_digit(black ? SYM_BLACK : disp_digits[col]);
+  HAL_GPIO_WritePin(SEG_DP_GPIO_Port, SEG_DP_Pin,
+                    !!(disp_point_mask & (1 << col)));
   HAL_GPIO_WritePin(SEG_Neg_Port[col], SEG_Neg_Pin[col], 0);
 }
 
-void Seg7_Update(uint32_t number, uint8_t point_mask)
-{
-  for (int i = 3; i >= 0; i--)
-  {
+void Seg7_SetBlink(uint8_t blink_mask) { disp_blink_mask = blink_mask; }
+
+void Seg7_Update(uint32_t number, uint8_t point_mask) {
+  for (int i = 3; i >= 0; i--) {
     disp_digits[i] = number % 10;
     number /= 10;
   }
+  if (disp_digits[0] == 0)
+    disp_digits[0] = SYM_BLACK;
   disp_point_mask = point_mask;
 }
