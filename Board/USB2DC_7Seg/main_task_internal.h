@@ -4,6 +4,9 @@
 
 enum display_state_t{
      DISP_MEASURE,
+     DISP_SET_VOLT,
+     DISP_SET_DECIVOLT,
+     DISP_SET_CENTIVOLT,
 };
 
 /* Format of the different kind of message */
