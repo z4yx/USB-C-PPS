@@ -10,6 +10,8 @@
 #include "usbpd_pwr_if.h"
 #include "usbpd_trace.h"
 
+#include <stdlib.h>
+
 static osMessageQId MainEvtQueue;
 static TimerHandle_t BtnTimer;
 static TimerHandle_t DispTimer;
@@ -17,6 +19,12 @@ static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of
                                    no PD device attached) */
 static uint16_t applied_centivolt;
 static uint16_t setting_centivolt;
+static uint8_t setting_pdoindex;
+static int16_t adjustment_value[] = {
+    [DISP_SET_VOLT] = 100,
+    [DISP_SET_DECIVOLT] = 10,
+    [DISP_SET_CENTIVOLT] = 1,
+};
 
 void vTimerCallback(TimerHandle_t xTimer) {
   const struct joystick_desc_t {
@@ -62,15 +70,156 @@ static void UCDC_Display_Measure() {
   Seg7_Update(volt / 10, 1 << 1);
 }
 
-static void UCDC_Action_Enter_Settings() { setting_centivolt = applied_centivolt; }
+static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
+                                         uint8_t *pdoindex_o) {
+  uint16_t result = up ? 0xffff : 0;
+  DBG_MSG("target=%hucV up=%hu\n", target_centivolt, up);
+
+  for (int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++) {
+
+    if (USBPD_PDO_TYPE_FIXED ==
+        (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
+      uint32_t centiamp = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                            USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
+                           USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
+      uint32_t centivolt = 5 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                                 USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >>
+                                USBPD_PDO_SRC_FIXED_VOLTAGE_Pos);
+      DBG_MSG("FIXED: %ucV %ucA\n", centivolt, centiamp);
+
+      if (up && centivolt >= target_centivolt) {
+        if (centivolt < result) {
+          *pdoindex_o = index;
+          result = centivolt;
+        }
+      } else if (!up && centivolt <= target_centivolt) {
+        if (centivolt > result) {
+          *pdoindex_o = index;
+          result = centivolt;
+        }
+      }
+      DBG_MSG("result=%hucV\n", result);
+    } else if (USBPD_PDO_TYPE_APDO ==
+               (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
+      uint32_t centiamp = 5 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                                USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+                               USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
+      uint32_t centivolt_min = 10 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                                      USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
+                                     USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos);
+      uint32_t centivolt_max = 10 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                                      USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
+                                     USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
+      DBG_MSG("PPS: %ucV~%ucV %ucA\n", centivolt_min, centivolt_max, centiamp);
+
+      // TODO: adj in 2cV
+      if (up && centivolt_max >= target_centivolt) {
+        if (centivolt_min <= target_centivolt) {
+          *pdoindex_o = index;
+          result = target_centivolt;
+        } else if (centivolt_min < result) {
+          *pdoindex_o = index;
+          result = centivolt_min;
+        }
+      } else if (!up && centivolt_min <= target_centivolt) {
+        if (centivolt_max >= target_centivolt) {
+          *pdoindex_o = index;
+          result = target_centivolt;
+        } else if (centivolt_max > result) {
+          *pdoindex_o = index;
+          result = centivolt_max;
+        }
+      }
+      DBG_MSG("result=%hucV\n", result);
+    }
+  }
+  if (result == 0xffff)
+    result = 0; // failure
+  return result;
+}
+
+static void UCDC_Action_Enter_Settings() {
+  setting_centivolt = applied_centivolt;
+  setting_centivolt =
+      UCDC_Search_Next_Voltage(setting_centivolt, 0, &setting_pdoindex);
+  if (!setting_centivolt)
+    setting_centivolt =
+        UCDC_Search_Next_Voltage(setting_centivolt, 1, &setting_pdoindex);
+  if (!setting_centivolt) {
+    // TODO: error
+  } else {
+    Seg7_Update(setting_centivolt, 1 << 1);
+  }
+}
 static void UCDC_Action_Exit_Settings() { Seg7_SetBlink(0); }
 
-static void UCDC_Action_Adjust(int16_t delta) {}
+static void UCDC_Action_Adjust(int16_t delta) {
+  uint16_t new_centivolt = UCDC_Search_Next_Voltage(
+      setting_centivolt + delta, delta > 0, &setting_pdoindex);
+  if (!new_centivolt) {
+    // out of boundary, ignore this action
+    return;
+  }
+  uint32_t range = abs(delta) * 10;
+  if (range < 1000 && new_centivolt / range != setting_centivolt / range) {
+    // disallow to change digits that is higher than current digit
+    return;
+  }
+  setting_centivolt = new_centivolt;
+  Seg7_Update(setting_centivolt, 1 << 1);
+}
 
-static void UCDC_Action_Apply() {}
+static void UCDC_Action_Apply() {
+  USBPD_SNKRDO_TypeDef rdo;
+  USBPD_PDO_TypeDef pdo;
+  USBPD_StatusTypeDef ret = USBPD_FAIL;
+
+  if (!setting_centivolt ||
+      setting_pdoindex >= DPM_Ports[0].DPM_NumberOfRcvSRCPDO) {
+    ERR_MSG("Invalid settings\n");
+    return;
+  }
+
+  pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex];
+
+  if (USBPD_CORE_PDO_TYPE_APDO == pdo.GenericPDO.PowerObject) {
+    rdo.d32 = 0;
+    rdo.ProgRDO.OperatingCurrentIn50mAunits =
+        ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
+          USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+         USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
+    rdo.ProgRDO.OutputVoltageIn20mV = setting_centivolt / 2;
+    rdo.ProgRDO.UnchunkedExtendedMessage = 0;
+    rdo.ProgRDO.NoUSBSuspend = 0;
+    rdo.ProgRDO.USBCommunicationsCapable = 0;
+    rdo.ProgRDO.CapabilityMismatch = 0;
+    rdo.FixedVariableRDO.ObjectPosition = setting_pdoindex + 1;
+    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
+
+  } else if (USBPD_CORE_PDO_TYPE_FIXED == pdo.GenericPDO.PowerObject) {
+    rdo.d32 = 0;
+    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits =
+        ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
+          USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
+         USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
+    rdo.FixedVariableRDO.OperatingCurrentIn10mAunits =
+        rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits;
+    rdo.FixedVariableRDO.NoUSBSuspend = 0;
+    rdo.FixedVariableRDO.USBCommunicationsCapable = 0;
+    rdo.FixedVariableRDO.CapabilityMismatch = 0;
+    rdo.FixedVariableRDO.GiveBackFlag = 0;
+    rdo.FixedVariableRDO.ObjectPosition = setting_pdoindex + 1;
+    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_FIXED);
+    // USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition,
+    // voltage);
+  }
+  if (ret == USBPD_OK) {
+    applied_centivolt = setting_centivolt;
+  }
+}
 
 /**
- * 
+ *
  * @brief  main demo function to manage all the appplication event and to update
  * MMI in standalone mode
  * @param  Event
@@ -92,12 +241,11 @@ static void UCDC_Manage_event(uint32_t Event) {
     case UCDC_MMI_ACTION_NONE:
       if (cur_display == DISP_MEASURE) {
         UCDC_Display_Measure();
-      }
-      else if(cur_display == DISP_SET_VOLT)
+      } else if (cur_display == DISP_SET_VOLT)
         Seg7_SetBlink(0b0011);
-      else if(cur_display == DISP_SET_DECIVOLT)
+      else if (cur_display == DISP_SET_DECIVOLT)
         Seg7_SetBlink(0b0100);
-      else if(cur_display == DISP_SET_CENTIVOLT)
+      else if (cur_display == DISP_SET_CENTIVOLT)
         Seg7_SetBlink(0b1000);
       //   if (((MENU_MEASURE == _tab_menu_val)))
       //   {
@@ -123,27 +271,26 @@ static void UCDC_Manage_event(uint32_t Event) {
         cur_display = DISP_SET_CENTIVOLT;
       break;
     case UCDC_MMI_ACTION_LEFT_PRESS:
-      if (cur_display == DISP_SET_VOLT){
+      if (cur_display == DISP_SET_VOLT) {
         UCDC_Action_Exit_Settings();
         cur_display = DISP_MEASURE;
-      }
-      else if (cur_display == DISP_SET_DECIVOLT)
+      } else if (cur_display == DISP_SET_DECIVOLT)
         cur_display = DISP_SET_VOLT;
       else if (cur_display == DISP_SET_CENTIVOLT)
         cur_display = DISP_SET_DECIVOLT;
       break;
     case UCDC_MMI_ACTION_UP_PRESS:
       if (CUR_DISP_IS_SET())
-        UCDC_Action_Adjust(1);
+        UCDC_Action_Adjust(adjustment_value[cur_display]);
       break;
     case UCDC_MMI_ACTION_DOWN_PRESS:
       if (CUR_DISP_IS_SET())
-        UCDC_Action_Adjust(-1);
+        UCDC_Action_Adjust(-adjustment_value[cur_display]);
       break;
       // Display_menunav_info(_tab_menu_val, Event & UCDC_MMI_ACTION_Msk);
       break;
     case UCDC_MMI_ACTION_SEL_PRESS:
-      if(CUR_DISP_IS_SET()){
+      if (CUR_DISP_IS_SET()) {
         UCDC_Action_Exit_Settings();
         cur_display = DISP_MEASURE;
         UCDC_Action_Apply();
