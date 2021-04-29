@@ -20,6 +20,7 @@ static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of
 static uint16_t applied_centivolt;
 static uint16_t setting_centivolt;
 static uint8_t setting_pdoindex;
+static uint32_t setting_timeout;
 static int16_t adjustment_value[] = {
     [DISP_SET_VOLT] = 100,
     [DISP_SET_DECIVOLT] = 10,
@@ -149,9 +150,13 @@ static void UCDC_Action_Enter_Settings() {
     // TODO: error
   } else {
     Seg7_Update(setting_centivolt, 1 << 1);
+    setting_timeout = HAL_GetTick();
   }
 }
 static void UCDC_Action_Exit_Settings() { Seg7_SetBlink(0); }
+static bool UCDC_Setting_Timeout() {
+  return HAL_GetTick() - setting_timeout > 10000;
+}
 
 static void UCDC_Action_Adjust(int16_t delta) {
   uint16_t new_centivolt = UCDC_Search_Next_Voltage(
@@ -235,8 +240,6 @@ static void UCDC_Manage_event(uint32_t Event) {
 
   switch (Event & UCDC_MSG_TYPE_MSK) {
   case UCDC_MSG_MMI: {
-    //   if ((Event & UCDC_MMI_ACTION_Msk) != UCDC_MMI_ACTION_NONE)
-    //     demo_timeout = HAL_GetTick();
     switch (Event & UCDC_MMI_ACTION_Msk) {
     case UCDC_MMI_ACTION_NONE:
       if (cur_display == DISP_MEASURE) {
@@ -247,19 +250,10 @@ static void UCDC_Manage_event(uint32_t Event) {
         Seg7_SetBlink(0b0100);
       else if (cur_display == DISP_SET_CENTIVOLT)
         Seg7_SetBlink(0b1000);
-      //   if (((MENU_MEASURE == _tab_menu_val)))
-      //   {
-      //     Display_menuupdate_info(_tab_menu_val);
-      //   }
-      //   if (DPM_Params[0].PE_Power != USBPD_POWER_NO)
-      //   {
-      //     if (HAL_GetTick() - demo_timeout> 20000)
-      //     {
-      //       _tab_menu_val = MENU_MEASURE;
-      //       demo_timeout = HAL_GetTick();
-      //       Display_menuupdate_info(_tab_menu_val);
-      //     }
-      //   }
+      if (CUR_DISP_IS_SET() && UCDC_Setting_Timeout()) {
+        UCDC_Action_Exit_Settings();
+        cur_display = DISP_MEASURE;
+      }
       break;
     case UCDC_MMI_ACTION_RIGHT_PRESS:
       if (cur_display == DISP_MEASURE) {
@@ -269,6 +263,11 @@ static void UCDC_Manage_event(uint32_t Event) {
         cur_display = DISP_SET_DECIVOLT;
       else if (cur_display == DISP_SET_DECIVOLT)
         cur_display = DISP_SET_CENTIVOLT;
+      else if (cur_display == DISP_SET_CENTIVOLT) {
+        UCDC_Action_Exit_Settings();
+        cur_display = DISP_MEASURE;
+        UCDC_Action_Apply();
+      }
       break;
     case UCDC_MMI_ACTION_LEFT_PRESS:
       if (cur_display == DISP_SET_VOLT) {
@@ -282,30 +281,20 @@ static void UCDC_Manage_event(uint32_t Event) {
     case UCDC_MMI_ACTION_UP_PRESS:
       if (CUR_DISP_IS_SET())
         UCDC_Action_Adjust(adjustment_value[cur_display]);
+      else
+        LED_OutEnable(1);
       break;
     case UCDC_MMI_ACTION_DOWN_PRESS:
       if (CUR_DISP_IS_SET())
         UCDC_Action_Adjust(-adjustment_value[cur_display]);
-      break;
-      // Display_menunav_info(_tab_menu_val, Event & UCDC_MMI_ACTION_Msk);
+      else
+        LED_OutEnable(0);
       break;
     case UCDC_MMI_ACTION_SEL_PRESS:
-      if (CUR_DISP_IS_SET()) {
-        UCDC_Action_Exit_Settings();
-        cur_display = DISP_MEASURE;
-        UCDC_Action_Apply();
-      }
-      // _tab_menu_val = Menu_manage_next(_tab_menu_val);
-      // Display_menuupdate_info(_tab_menu_val);
       break;
-    case UCDC_MMI_ACTION_SEL_LONGPRESS: {
-      //   DEMO_MENU next_menu = Display_menuexec_info(_tab_menu_val);
-      //   if (next_menu != MENU_INVALID) { /* If action successfull */
-      //     _tab_menu_val = next_menu;
-      //     Display_menuupdate_info(_tab_menu_val);
-      //   }
-      LED_ToggleOutEnable();
-    } break;
+    case UCDC_MMI_ACTION_SEL_LONGPRESS:
+      // LED_ToggleOutEnable();
+      break;
     }
   } break;
   case UCDC_MSG_CAD: {
