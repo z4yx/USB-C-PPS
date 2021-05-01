@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #define DEBUG_MESSAGE
 #ifdef DEBUG_MESSAGE

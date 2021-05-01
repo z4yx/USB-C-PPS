@@ -75,18 +75,18 @@ static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
                                          uint8_t *pdoindex_o) {
   uint16_t result = up ? 0xffff : 0;
   DBG_MSG("target=%hucV up=%hu\n", target_centivolt, up);
-
-  for (int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++) {
+  DBG_MSG("Searching in %lu PDOs\n", DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO);
+  for (int8_t index = 0; index < DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO; index++) {
 
     if (USBPD_PDO_TYPE_FIXED ==
-        (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
-      uint32_t centiamp = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+        (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
+      uint32_t centiamp = ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                             USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
                            USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
-      uint32_t centivolt = 5 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+      uint32_t centivolt = 5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                                  USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >>
                                 USBPD_PDO_SRC_FIXED_VOLTAGE_Pos);
-      DBG_MSG("FIXED: %ucV %ucA\n", centivolt, centiamp);
+      DBG_MSG("FIXED: %lucV %lucA\n", centivolt, centiamp);
 
       if (up && centivolt >= target_centivolt) {
         if (centivolt < result) {
@@ -101,17 +101,17 @@ static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
       }
       DBG_MSG("result=%hucV\n", result);
     } else if (USBPD_PDO_TYPE_APDO ==
-               (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
-      uint32_t centiamp = 5 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+               (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
+      uint32_t centiamp = 5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                                 USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
                                USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
-      uint32_t centivolt_min = 10 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+      uint32_t centivolt_min = 10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                                       USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
                                      USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos);
-      uint32_t centivolt_max = 10 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+      uint32_t centivolt_max = 10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                                       USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
                                      USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
-      DBG_MSG("PPS: %ucV~%ucV %ucA\n", centivolt_min, centivolt_max, centiamp);
+      DBG_MSG("PPS: %lucV~%lucV %lucA\n", centivolt_min, centivolt_max, centiamp);
 
       // TODO: adj in 2cV
       if (up && centivolt_max >= target_centivolt) {
@@ -180,17 +180,17 @@ static void UCDC_Action_Apply() {
   USBPD_StatusTypeDef ret = USBPD_FAIL;
 
   if (!setting_centivolt ||
-      setting_pdoindex >= DPM_Ports[0].DPM_NumberOfRcvSRCPDO) {
+      setting_pdoindex >= DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO) {
     ERR_MSG("Invalid settings\n");
     return;
   }
 
-  pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex];
+  pdo.d32 = DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[setting_pdoindex];
 
   if (USBPD_CORE_PDO_TYPE_APDO == pdo.GenericPDO.PowerObject) {
     rdo.d32 = 0;
     rdo.ProgRDO.OperatingCurrentIn50mAunits =
-        ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
+        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
           USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
          USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
     rdo.ProgRDO.OutputVoltageIn20mV = setting_centivolt / 2;
@@ -204,7 +204,7 @@ static void UCDC_Action_Apply() {
   } else if (USBPD_CORE_PDO_TYPE_FIXED == pdo.GenericPDO.PowerObject) {
     rdo.d32 = 0;
     rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits =
-        ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
+        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[setting_pdoindex] &
           USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
          USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
     rdo.FixedVariableRDO.OperatingCurrentIn10mAunits =

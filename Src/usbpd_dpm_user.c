@@ -519,7 +519,7 @@ void USBPD_DPM_SetDataInfo(uint8_t PortNum, USBPD_CORE_DataInfoType_TypeDef Data
     /* Case Received Source PDO values Data information :
     */
   case USBPD_CORE_DATATYPE_RCV_SRC_PDO :
-    DBG_MSG("DATATYPE_RCV_SRC_PDO: %u\n", Size / 4u);
+    DBG_MSG("DATATYPE_RCV_SRC_PDO: %lu\n", Size / 4u);
     if (Size <= (USBPD_MAX_NB_PDO * 4))
     {
       uint8_t* rdo;
@@ -583,6 +583,11 @@ void USBPD_DPM_SetDataInfo(uint8_t PortNum, USBPD_CORE_DataInfoType_TypeDef Data
       uint8_t*  ext_capa;
       ext_capa = (uint8_t*)&DPM_Ports[PortNum].DPM_RcvSRCExtendedCapa;
       memcpy(ext_capa, Ptr, Size);
+      
+      USBPD_SCEDB_TypeDef *capa = &DPM_Ports[PortNum].DPM_RcvSRCExtendedCapa;
+      DBG_MSG("ExtCapa: %04hx:%04hx XID=%08lx Fw.V%u Hw.V%u\n",
+        capa->VID, capa->PID, capa->XID,
+        capa->FW_revision, capa->HW_revision);
     }
     break;
 
@@ -652,7 +657,7 @@ void USBPD_DPM_SNK_EvaluateCapabilities(uint8_t PortNum, uint32_t *PtrRequestDat
     pdhandle->DPM_RequestedVoltage = 5000;
     return;
   }
-  DBG_MSG("PDO Index %u\r\n", pdoindex);
+  DBG_MSG("PDO Index %lu\n", pdoindex);
 
   DPM_SNK_BuildRDOfromSelectedPDO(PortNum, pdoindex, &snkpowerrequestdetails,&rdo, PtrPowerObjectType);
 
@@ -693,6 +698,7 @@ void USBPD_DPM_ExtendedMessageReceived(uint8_t PortNum, USBPD_ExtendedMsg_TypeDe
     return;
   }
 
+  DBG_MSG("%u\n", MsgType);
   switch(MsgType)
   {
     default:
@@ -805,7 +811,7 @@ USBPD_StatusTypeDef USBPD_DPM_RequestMessageRequest(uint8_t PortNum, uint8_t Ind
   pdo.d32 = DPM_Ports[PortNum].DPM_ListOfRcvSRCPDO[(IndexSrcPDO - 1)];
   voltage = RequestedVoltage;
   allowablepower = (puser->DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits * RequestedVoltage) / 1000;
-  DBG_MSG("USBPD_DPM_RequestMessageRequest PDO %#x\r\n", pdo.d32);
+  DBG_MSG("USBPD_DPM_RequestMessageRequest PDO %#lx\n", pdo.d32);
 
   if (USBPD_TRUE == USBPD_DPM_SNK_EvaluateMatchWithSRCPDO(PortNum, pdo.d32, &voltage, &allowablepower))
   {

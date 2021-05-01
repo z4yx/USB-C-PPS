@@ -168,7 +168,6 @@ USBPD_StatusTypeDef USBPD_PWR_IF_Init(void)
 {
 /* USER CODE BEGIN USBPD_PWR_IF_Init */
   USBPD_StatusTypeDef _status = USBPD_OK;
-  uint32_t index;
 
   /* Set links to PDO values and number for Port 0 (defined in PDO arrays in H file).
    */
@@ -314,7 +313,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   for (uint32_t _index = 0; _index < PWR_Port_PDO_Storage[PortNum].SinkPDO.NumberOfPDO; _index++)
   {
     pdo.d32 = PWR_Port_PDO_Storage[PortNum].SinkPDO.ListOfPDO[_index];
-    DBG_MSG("Sink PDO %#x (type=%#x)\r\n", pdo.d32, pdo.GenericPDO.PowerObject);
+    DBG_MSG("Sink PDO %#lx (type=%#x)\n", pdo.d32, pdo.GenericPDO.PowerObject);
     switch (pdo.GenericPDO.PowerObject)
     {
       case USBPD_CORE_PDO_TYPE_FIXED:    /*!< Fixed Supply PDO                             */
@@ -354,7 +353,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   }
 
   // DBG_MSG("PDO Range: %hu~%hu mV, %hu mA\r\n", _min_voltage, _max_voltage, _max_current);
-  DBG_MSG("Sink Allowed Range: %hu~%hu mV, %hu mA\r\n",
+  DBG_MSG("Sink Allowed Range: %lu~%lu mV, %lu mA\r\n",
          DPM_USER_Settings[PortNum]
              .DPM_SNKRequestedPower.MinOperatingVoltageInmVunits,
          DPM_USER_Settings[PortNum]

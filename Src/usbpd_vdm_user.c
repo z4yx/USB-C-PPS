@@ -166,7 +166,7 @@ static void USBPD_VDM_InformIdentity(uint8_t PortNum, USBPD_SOPType_TypeDef SOPT
       uint8_t*  disco_ident;
       disco_ident = (uint8_t*)&DPM_Ports[PortNum].VDM_DiscoIdentify;
       memcpy(disco_ident, (uint8_t*)pIdentity, sizeof(USBPD_DiscoveryIdentity_TypeDef));
-      DBG_MSG("VDM Ident ProductVDO=%#x\r\n", pIdentity->ProductVDO.d32);
+      DBG_MSG("VDM Ident ProductVDO=%#lx\n", pIdentity->ProductVDO.d32);
 
 #if defined(_GUI_INTERFACE)
       if (USBPD_ENABLE != GUI_IsRunning())
@@ -285,7 +285,7 @@ static void USBPD_VDM_InformMode(uint8_t PortNum, USBPD_SOPType_TypeDef SOPType,
       DPM_Ports[PortNum].VDM_ModesPortPartner.NumModes = pModesInfo->NumModes;
       for (uint32_t index = 0; index < DPM_Ports[PortNum].VDM_ModesPortPartner.NumModes; index++)
       {
-        DBG_MSG("VDM Mode: %#x\r\n", pModesInfo->Modes[index]);
+        DBG_MSG("VDM Mode: %#lx\n", pModesInfo->Modes[index]);
         DPM_Ports[PortNum].VDM_ModesPortPartner.Modes[index] = pModesInfo->Modes[index];
       }
 
