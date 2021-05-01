@@ -14,7 +14,7 @@
 # target
 ######################################
 TARGET = UCDC
-BOARD ?= G071B_Disco
+BOARD ?= USB2DC_7Seg
 
 ######################################
 # building variables
