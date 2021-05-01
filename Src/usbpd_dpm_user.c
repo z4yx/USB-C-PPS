@@ -1560,8 +1560,7 @@ static uint32_t DPM_FindVoltageIndex(uint32_t PortNum, USBPD_DPM_SNKPowerRequest
       {
         /* Add additional check for compatibility of this SRC PDO with port characteristics (defined in DPM_USER_Settings) */
         if (  (voltage >= puser->DPM_SNKRequestedPower.MinOperatingVoltageInmVunits)
-            &&(voltage <= puser->DPM_SNKRequestedPower.MaxOperatingVoltageInmVunits)
-            &&(allowablepower <= puser->DPM_SNKRequestedPower.MaxOperatingPowerInmWunits))
+            &&(voltage <= puser->DPM_SNKRequestedPower.OperatingVoltageInmVunits))
         {
           /* consider the current PDO the better one until now */
           curr_index = temp_index;
