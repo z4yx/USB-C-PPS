@@ -314,7 +314,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   for (uint32_t _index = 0; _index < PWR_Port_PDO_Storage[PortNum].SinkPDO.NumberOfPDO; _index++)
   {
     pdo.d32 = PWR_Port_PDO_Storage[PortNum].SinkPDO.ListOfPDO[_index];
-    DBG_MSG("PDO %#x\r\n", pdo.d32);
+    DBG_MSG("Sink PDO %#x (type=%#x)\r\n", pdo.d32, pdo.GenericPDO.PowerObject);
     switch (pdo.GenericPDO.PowerObject)
     {
       case USBPD_CORE_PDO_TYPE_FIXED:    /*!< Fixed Supply PDO                             */
@@ -353,8 +353,8 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
     }
   }
 
-  DBG_MSG("PDOs: %hu~%hu mV, %hu mA\r\n", _min_voltage, _max_voltage, _max_current);
-  DBG_MSG("DPM_USER_Settings: %hu~%hu mV, %hu mA\r\n",
+  // DBG_MSG("PDO Range: %hu~%hu mV, %hu mA\r\n", _min_voltage, _max_voltage, _max_current);
+  DBG_MSG("Sink Allowed Range: %hu~%hu mV, %hu mA\r\n",
          DPM_USER_Settings[PortNum]
              .DPM_SNKRequestedPower.MinOperatingVoltageInmVunits,
          DPM_USER_Settings[PortNum]
@@ -365,7 +365,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   // _PWR_CHECK_VOLTAGE_MIN(_min_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MinOperatingVoltageInmVunits);
   // _PWR_CHECK_VOLTAGE_MAX(_max_voltage, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingVoltageInmVunits);
   // _PWR_CHECK_CURRENT_MAX(_max_current, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingCurrentInmAunits);
-  _max_power = (_max_voltage * _max_current) / 1000;
+  // _max_power = (_max_voltage * _max_current) / 1000;
   // _PWR_CHECK_POWER_MAX(_max_power, DPM_USER_Settings[PortNum].DPM_SNKRequestedPower.MaxOperatingPowerInmWunits);
 
   return _status;

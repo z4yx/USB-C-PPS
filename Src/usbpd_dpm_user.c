@@ -519,6 +519,7 @@ void USBPD_DPM_SetDataInfo(uint8_t PortNum, USBPD_CORE_DataInfoType_TypeDef Data
     /* Case Received Source PDO values Data information :
     */
   case USBPD_CORE_DATATYPE_RCV_SRC_PDO :
+    DBG_MSG("DATATYPE_RCV_SRC_PDO: %u\n", Size / 4u);
     if (Size <= (USBPD_MAX_NB_PDO * 4))
     {
       uint8_t* rdo;
@@ -651,7 +652,7 @@ void USBPD_DPM_SNK_EvaluateCapabilities(uint8_t PortNum, uint32_t *PtrRequestDat
     pdhandle->DPM_RequestedVoltage = 5000;
     return;
   }
-  DBG_MSG("USBPD_DPM_SNK_EvaluateCapabilities PDO Index %d\r\n", pdoindex);
+  DBG_MSG("PDO Index %u\r\n", pdoindex);
 
   DPM_SNK_BuildRDOfromSelectedPDO(PortNum, pdoindex, &snkpowerrequestdetails,&rdo, PtrPowerObjectType);
 
