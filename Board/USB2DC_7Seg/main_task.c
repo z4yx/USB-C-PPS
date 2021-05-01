@@ -17,14 +17,14 @@ static TimerHandle_t BtnTimer;
 static TimerHandle_t DispTimer;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of
                                    no PD device attached) */
-static uint16_t applied_centivolt;
+static uint16_t applied_centivolt; // 1 cV = 10 mV
 static uint16_t setting_centivolt;
 static uint8_t setting_pdoindex;
 static uint32_t setting_timeout;
 static int16_t adjustment_value[] = {
     [DISP_SET_VOLT] = 100,
     [DISP_SET_DECIVOLT] = 10,
-    [DISP_SET_CENTIVOLT] = 1,
+    [DISP_SET_CENTIVOLT] = 2, // minimum granularity of PPS is 20mV
 };
 
 void vTimerCallback(TimerHandle_t xTimer) {
@@ -67,26 +67,35 @@ void vTimerCallback(TimerHandle_t xTimer) {
 void dTimerCallback(TimerHandle_t xTimer) { Seg7_Refresh(); }
 
 static void UCDC_Display_Measure() {
-  uint32_t volt = BSP_PWR_VBUSGetVoltage(0);
-  Seg7_Update(volt / 10, 1 << 1);
+  uint32_t millivolt = BSP_PWR_VBUSGetVoltage(0);
+  Seg7_Update(millivolt / 10, 1 << 1);
 }
 
 static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
                                          uint8_t *pdoindex_o) {
   uint16_t result = up ? 0xffff : 0;
+  uint16_t upper_bound = 0, lower_bound = 0xffff;
   DBG_MSG("target=%hucV up=%hu\n", target_centivolt, up);
-  DBG_MSG("Searching in %lu PDOs\n", DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO);
-  for (int8_t index = 0; index < DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO; index++) {
+  DBG_MSG("Searching in %lu PDOs\n",
+          DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO);
+  for (int8_t index = 0; index < DPM_Ports[USBPD_PORT_0].DPM_NumberOfRcvSRCPDO;
+       index++) {
 
     if (USBPD_PDO_TYPE_FIXED ==
-        (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
+        (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+         USBPD_PDO_TYPE_Msk)) {
       uint32_t centiamp = ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
                             USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
                            USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
-      uint32_t centivolt = 5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
-                                 USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >>
-                                USBPD_PDO_SRC_FIXED_VOLTAGE_Pos);
+      uint32_t centivolt =
+          5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+                USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >>
+               USBPD_PDO_SRC_FIXED_VOLTAGE_Pos);
       DBG_MSG("FIXED: %lucV %lucA\n", centivolt, centiamp);
+      if (centivolt > upper_bound)
+        upper_bound = centivolt;
+      if (centivolt < lower_bound)
+        lower_bound = centivolt;
 
       if (up && centivolt >= target_centivolt) {
         if (centivolt < result) {
@@ -101,19 +110,27 @@ static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
       }
       DBG_MSG("result=%hucV\n", result);
     } else if (USBPD_PDO_TYPE_APDO ==
-               (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)) {
-      uint32_t centiamp = 5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
-                                USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
-                               USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
-      uint32_t centivolt_min = 10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
-                                      USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
-                                     USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos);
-      uint32_t centivolt_max = 10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
-                                      USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
-                                     USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
-      DBG_MSG("PPS: %lucV~%lucV %lucA\n", centivolt_min, centivolt_max, centiamp);
+               (DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+                USBPD_PDO_TYPE_Msk)) {
+      uint32_t centiamp =
+          5 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+                USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+               USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
+      uint32_t centivolt_min =
+          10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+                 USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
+                USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos);
+      uint32_t centivolt_max =
+          10 * ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[index] &
+                 USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
+                USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
+      DBG_MSG("PPS: %lucV~%lucV %lucA\n", centivolt_min, centivolt_max,
+              centiamp);
+      if (centivolt_max > upper_bound)
+        upper_bound = centivolt_max;
+      if (centivolt_min < lower_bound)
+        lower_bound = centivolt_min;
 
-      // TODO: adj in 2cV
       if (up && centivolt_max >= target_centivolt) {
         if (centivolt_min <= target_centivolt) {
           *pdoindex_o = index;
@@ -135,10 +152,21 @@ static uint16_t UCDC_Search_Next_Voltage(uint16_t target_centivolt, uint8_t up,
     }
   }
   if (result == 0xffff)
+    result = upper_bound;
+  else if (result == 0)
+    result = lower_bound;
+
+  if (result == 0xffff)
     result = 0; // failure
   return result;
 }
 
+static inline void UCDC_Action_Reset_Timeout() {
+  setting_timeout = HAL_GetTick();
+}
+static inline bool UCDC_Setting_Timeout() {
+  return HAL_GetTick() - setting_timeout > 10000;
+}
 static void UCDC_Action_Enter_Settings() {
   setting_centivolt = applied_centivolt;
   setting_centivolt =
@@ -150,24 +178,16 @@ static void UCDC_Action_Enter_Settings() {
     // TODO: error
   } else {
     Seg7_Update(setting_centivolt, 1 << 1);
-    setting_timeout = HAL_GetTick();
+    UCDC_Action_Reset_Timeout();
   }
 }
 static void UCDC_Action_Exit_Settings() { Seg7_SetBlink(0); }
-static bool UCDC_Setting_Timeout() {
-  return HAL_GetTick() - setting_timeout > 10000;
-}
 
 static void UCDC_Action_Adjust(int16_t delta) {
   uint16_t new_centivolt = UCDC_Search_Next_Voltage(
       setting_centivolt + delta, delta > 0, &setting_pdoindex);
   if (!new_centivolt) {
     // out of boundary, ignore this action
-    return;
-  }
-  uint32_t range = abs(delta) * 10;
-  if (range < 1000 && new_centivolt / range != setting_centivolt / range) {
-    // disallow to change digits that is higher than current digit
     return;
   }
   setting_centivolt = new_centivolt;
@@ -256,6 +276,7 @@ static void UCDC_Manage_event(uint32_t Event) {
       }
       break;
     case UCDC_MMI_ACTION_RIGHT_PRESS:
+      UCDC_Action_Reset_Timeout();
       if (cur_display == DISP_MEASURE) {
         UCDC_Action_Enter_Settings();
         cur_display = DISP_SET_VOLT;
@@ -270,6 +291,7 @@ static void UCDC_Manage_event(uint32_t Event) {
       }
       break;
     case UCDC_MMI_ACTION_LEFT_PRESS:
+      UCDC_Action_Reset_Timeout();
       if (cur_display == DISP_SET_VOLT) {
         UCDC_Action_Exit_Settings();
         cur_display = DISP_MEASURE;
@@ -279,12 +301,14 @@ static void UCDC_Manage_event(uint32_t Event) {
         cur_display = DISP_SET_DECIVOLT;
       break;
     case UCDC_MMI_ACTION_UP_PRESS:
+      UCDC_Action_Reset_Timeout();
       if (CUR_DISP_IS_SET())
         UCDC_Action_Adjust(adjustment_value[cur_display]);
       else
         LED_OutEnable(1);
       break;
     case UCDC_MMI_ACTION_DOWN_PRESS:
+      UCDC_Action_Reset_Timeout();
       if (CUR_DISP_IS_SET())
         UCDC_Action_Adjust(-adjustment_value[cur_display]);
       else
@@ -447,6 +471,9 @@ void UCDC_Task_Standalone(void const *arg) {
   xTimerStart(BtnTimer, 0);
   xTimerStart(DispTimer, 0);
 
+  applied_centivolt = DPM_USER_Settings[USBPD_PORT_0]
+                          .DPM_SNKRequestedPower.OperatingVoltageInmVunits /
+                      10;
   for (;;) {
     osEvent event = osMessageGet(MainEvtQueue, 100);
     UCDC_Manage_event(UCDC_MSG_MMI | UCDC_MMI_ACTION_NONE);
