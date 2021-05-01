@@ -5,7 +5,7 @@
 #define NR_SYMBOL 17
 #define SYM_BLACK 16
 
-const GPIO_TypeDef *SEG_Neg_Port[] = {
+GPIO_TypeDef *const SEG_Neg_Port[] = {
     DIG1_GPIO_Port,
     DIG2_GPIO_Port,
     DIG3_GPIO_Port,
@@ -17,7 +17,7 @@ const uint32_t SEG_Neg_Pin[] = {
     DIG3_Pin,
     DIG4_Pin,
 };
-const GPIO_TypeDef *SEG_Pos_Port[] = {
+GPIO_TypeDef *const SEG_Pos_Port[] = {
     SEG_A_GPIO_Port, SEG_B_GPIO_Port, SEG_C_GPIO_Port, SEG_D_GPIO_Port,
     SEG_E_GPIO_Port, SEG_F_GPIO_Port, SEG_G_GPIO_Port,
 };
@@ -29,7 +29,7 @@ const uint8_t decode_tab[NR_SYMBOL] = {
     0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71,
     0, // SYM_BLACK
 };
-const GPIO_TypeDef *port_num2ptr[] = {GPIOA, GPIOB, GPIOC};
+GPIO_TypeDef *const port_num2ptr[] = {GPIOA, GPIOB, GPIOC};
 
 uint16_t fast_refresh_decode[3][NR_SYMBOL];
 uint16_t fast_refresh_mask[3];
