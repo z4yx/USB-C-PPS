@@ -6,6 +6,16 @@
         "**/Release_Notes.html": true
     },
     "files.associations": {
-        "usbpd_pwr_if.h": "c"
+        "usbpd_pwr_if.h": "c",
+        "common.h": "c",
+        "string.h": "c",
+        "usbpd_dpm_conf.h": "c",
+        "usbpd_cad_hw_if.h": "c",
+        "usbpd_hw_if.h": "c",
+        "usbpd_devices_conf.h": "c",
+        "main.h": "c",
+        "bsp_headers.h": "c",
+        "stm32g071b_discovery_pwr.h": "c",
+        "main_task_internal.h": "c"
     }
 }
