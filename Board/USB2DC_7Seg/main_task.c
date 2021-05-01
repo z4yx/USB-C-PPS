@@ -284,8 +284,12 @@ static void UCDC_Manage_event(uint32_t Event) {
     case UCDC_MMI_ACTION_RIGHT_PRESS:
       UCDC_Action_Reset_Timeout();
       if (cur_display == DISP_MEASURE) {
-        UCDC_Action_Enter_Settings();
-        cur_display = DISP_SET_VOLT;
+        if (pe_disabled || _tab_connect_status != 2) {
+          ERR_MSG("PD not available\n");
+        } else {
+          UCDC_Action_Enter_Settings();
+          cur_display = DISP_SET_VOLT;
+        }
       } else if (cur_display == DISP_SET_VOLT)
         cur_display = DISP_SET_DECIVOLT;
       else if (cur_display == DISP_SET_DECIVOLT)
@@ -332,18 +336,11 @@ static void UCDC_Manage_event(uint32_t Event) {
     case USBPD_CAD_EVENT_ATTEMC:
     case USBPD_CAD_EVENT_ATTACHED:
       _tab_connect_status = 1;
-      //  _tab_menu_val = MENU_PD_SPEC;
-      //  demo_timeout = HAL_GetTick();
-      //  Display_menuupdate_info(_tab_menu_val);
       break;
     case USBPD_CAD_EVENT_DETACHED:
       _tab_connect_status = 0;
-      pe_disabled =
-          0; /* reset PE status information for no PD device attached */
-             //  _tab_menu_val = MENU_PD_SPEC;
-             //  Display_menuupdate_info(_tab_menu_val);
-
-      //  BSP_LED_Off(LED_ORANGE);
+      /* reset PE status information for no PD device attached */
+      pe_disabled = 0;
       break;
     }
   } break;
@@ -383,27 +380,20 @@ static void UCDC_Manage_event(uint32_t Event) {
     case USBPD_NOTIFY_POWER_EXPLICIT_CONTRACT:
       DBG_MSG("USBPD_NOTIFY_POWER_EXPLICIT_CONTRACT\n");
       if (_tab_connect_status == 1) {
-        //   _tab_menu_val = MENU_MEASURE;
-        //   Display_menuupdate_info(_tab_menu_val);
         _tab_connect_status = 2;
       }
       break;
     case USBPD_NOTIFY_HARDRESET_RX:
       DBG_MSG("USBPD_NOTIFY_HARDRESET_RX\n");
-      {
-        pe_disabled =
-            0; /* reset PE state information in case of no PD device attached */
-               //  _tab_menu_val = MENU_PD_SPEC;
-               //  Display_menuupdate_info(_tab_menu_val);
+      { /* reset PE state information in case of no PD device attached */
+        pe_disabled = 0;
         break;
       }
     case USBPD_NOTIFY_PE_DISABLED:
       DBG_MSG("USBPD_NOTIFY_PE_DISABLED\n");
       {
-        pe_disabled =
-            1; /* means that attached device is not PD : PE is disabled */
-               //  _tab_menu_val = MENU_MEASURE;
-               //  Display_menuupdate_info(_tab_menu_val);
+        /* means that attached device is not PD : PE is disabled */
+        pe_disabled = 1;
         break;
       }
     case USBPD_NOTIFY_VDM_SVID_RECEIVED:
@@ -433,11 +423,9 @@ static void UCDC_Manage_event(uint32_t Event) {
     }
   } break;
   }
-  //   BSP_LCD_Refresh();
 }
 
 void UCDC_Task_Standalone(void const *arg) {
-  //   Display_pd_spec_menu();
 
   DispTimer = xTimerCreate(/* Just a text name, not used by the RTOS
                             kernel. */
@@ -490,16 +478,9 @@ void UCDC_Task_Standalone(void const *arg) {
 }
 
 void DEMO_InitBSP(void) {
-  //   BSP_LED_Init(LED_ORANGE);
-  //   BSP_JOY_Init(JOY_MODE_GPIO);
   DBG_MSG("DEMO_InitBSP\n");
   LED_7Seg_Init();
   JoyStick_Init();
-
-  /*##-1- Initialize the LCD #################################################*/
-  /* Initialize the LCD */
-  //   BSP_LCD_Init();
-  //   BSP_LCD_SetFont(&Font12);
 }
 
 void DEMO_InitTask(DEMO_MODE mode) {

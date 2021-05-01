@@ -313,7 +313,7 @@ USBPD_StatusTypeDef USBPD_PWR_IF_CheckUpdateSNKPower(uint8_t PortNum)
   for (uint32_t _index = 0; _index < PWR_Port_PDO_Storage[PortNum].SinkPDO.NumberOfPDO; _index++)
   {
     pdo.d32 = PWR_Port_PDO_Storage[PortNum].SinkPDO.ListOfPDO[_index];
-    DBG_MSG("Sink PDO %#lx (type=%#x)\n", pdo.d32, pdo.GenericPDO.PowerObject);
+    // DBG_MSG("Sink PDO %#lx (type=%u)\n", pdo.d32, pdo.GenericPDO.PowerObject);
     switch (pdo.GenericPDO.PowerObject)
     {
       case USBPD_CORE_PDO_TYPE_FIXED:    /*!< Fixed Supply PDO                             */
