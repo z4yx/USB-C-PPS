@@ -204,6 +204,12 @@ static void UCDC_Action_Apply() {
     ERR_MSG("Invalid settings\n");
     return;
   }
+  if (applied_centivolt == setting_centivolt) {
+    DBG_MSG("Unchanged voltage\n");
+    return;
+  }
+
+  LED_OutEnable(false); // turn off load before applying new settings
 
   pdo.d32 = DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[setting_pdoindex];
 
