@@ -129,7 +129,7 @@ typedef enum {
   MENU_PD_SPEC,
   MENU_MEASURE,
   MENU_SELECT_SOURCECAPA,
-  MENU_PPS_ADJUST,
+  MENU_VOLT_ADJUST,
   MENU_INVALID,
 } DEMO_MENU;
 
@@ -138,7 +138,7 @@ typedef enum {
 
 /* Private variables ---------------------------------------------------------*/
 static uint8_t indexPDO = 0;
-static uint32_t voltAPDO = 0;
+static uint32_t millivoltAPDO = 0;
 static uint8_t pe_disabled = 0; /* 0 by default, 1 if PE is disabled (in case of no PD device attached) */
 
 /*  contains the index of the selected item inside a menu*/
@@ -164,15 +164,10 @@ uint32_t demo_timeout;
 static void Display_clear(void);
 static void string_completion(uint8_t *str);
 
-static void Display_sourcecapa_menu_nav(uint8_t Or);
+static DEMO_MENU Display_sourcecapa_menu_nav(uint8_t Or);
 static uint8_t Display_sourcecapa_menu_exec(void);
 
 static void Display_menu_version(void);
-
-static void Display_command_menu(void);
-static void Display_command_menu_nav(int8_t Or);
-static uint8_t Display_command_menu_exec(void);
-
 
 void DEMO_Task_Standalone(void const *);
 static void DEMO_PostGetInfoMessage(uint8_t PortNum, uint16_t GetInfoVal);
@@ -371,25 +366,14 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
   }
 }
 
-/**
-  * @brief  get next menu
-  * @param  MenuId
-  * @retval menuid
-  */
-static DEMO_MENU Menu_manage_next(uint8_t MenuId)
-{
-  if(MENU_MEASURE == MenuId) return MENU_SELECT_SOURCECAPA;
-  if(MENU_SELECT_SOURCECAPA == MenuId) return MENU_PPS_ADJUST;
-  if(MENU_PPS_ADJUST == MenuId) return MENU_MEASURE;
-
-  return MENU_PD_SPEC;
-}
-
-static void Display_PPS_menu_nav(uint8_t Nav)
+static DEMO_MENU Display_adj_menu_nav(uint8_t Nav)
 {
   uint8_t _str[30];
   uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
   uint8_t _start, _end, _pos = 0;
+
+  if(Nav == DEMO_MMI_ACTION_LEFT_PRESS)
+    return MENU_MEASURE;
 
   uint32_t volt_range_low = USBPD_BOARD_MAX_VOLTAGE_MV,
            volt_range_high = USBPD_BOARD_MIN_VOLTAGE_MV;
@@ -426,15 +410,15 @@ static void Display_PPS_menu_nav(uint8_t Nav)
 
   if(volt_range_high < volt_range_low) {
     ERR_MSG("Invalid APOD range\r\n");
-    return;
   } else {
     DBG_MSG("%2d.%1d-%2d.%1dV\r\n", volt_range_low, volt_range_high);
     sprintf((char *)_str, "Range: %2d.%1d-%2d.%1dV", volt_range_low, volt_range_high);
     BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
   }
+  return MENU_INVALID;
 }
 
-static void Display_PPS_menu(void)
+static void Display_adj_menu(void)
 {
   /* Display menu source APDO */
   {
@@ -443,7 +427,7 @@ static void Display_PPS_menu(void)
     string_completion(_str);
     BSP_LCD_DisplayStringAtLine(0, _str);
   }
-  Display_PPS_menu_nav(DEMO_MMI_ACTION_NONE);
+  Display_adj_menu_nav(DEMO_MMI_ACTION_NONE);
 }
 
 /**
@@ -469,11 +453,15 @@ static void Display_sourcecapa_menu(void)
   * @param  Nav (DEMO_MMI_ACTION_UP_PRESS, DEMO_MMI_ACTION_DOWN_PRESS)
   * @retval None
   */
-static void Display_sourcecapa_menu_nav(uint8_t Nav)
+static DEMO_MENU Display_sourcecapa_menu_nav(uint8_t Nav)
 {
   uint8_t _str[30];
   uint8_t _max = 0;
   uint8_t _start, _end, _pos = 0, _i_pdo = 0;
+  uint32_t _apdo_mv;
+
+  if(Nav == DEMO_MMI_ACTION_LEFT_PRESS)
+    return MENU_MEASURE;
 
   for(int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++)
     if (USBPD_PDO_TYPE_FIXED == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk) ||
@@ -506,7 +494,7 @@ static void Display_sourcecapa_menu_nav(uint8_t Nav)
                  USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
                 USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
       sprintf((char*)_str, "% 2lu.%luV~% 2lu.%luV %lu.%luA", minvoltage/1000, (minvoltage % 1000 /100), maxvoltage/1000, (maxvoltage % 1000 /100), maxcurrent/1000, (maxcurrent % 1000 /100));
-
+      _apdo_mv = minvoltage;
     }
     else continue;
   
@@ -524,19 +512,25 @@ static void Display_sourcecapa_menu_nav(uint8_t Nav)
         BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
 
         indexPDO = index;
+        millivoltAPDO = _apdo_mv;
       }
     }
     _i_pdo++;
 
   }
+  return MENU_INVALID;
 }
 
-static void Display_measure_menu_nav(uint8_t Nav)
+static DEMO_MENU Display_measure_menu_nav(uint8_t Nav)
 {
+  DEMO_MENU ret = MENU_INVALID;
   if(Nav == DEMO_MMI_ACTION_UP_PRESS)
     BSP_LED_On(LED_ORANGE);
   else if(Nav == DEMO_MMI_ACTION_DOWN_PRESS)
     BSP_LED_Off(LED_ORANGE);
+  else if(Nav == DEMO_MMI_ACTION_RIGHT_PRESS)
+    ret = MENU_VOLT_ADJUST;
+  return ret;
 }
 
 static void Display_pd_spec_menu(void)
@@ -631,8 +625,8 @@ static void Display_menuupdate_info(DEMO_MENU MenuSel)
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
     Display_sourcecapa_menu();
     break;
-  case MENU_PPS_ADJUST :
-    Display_PPS_menu();
+  case MENU_VOLT_ADJUST :
+    Display_adj_menu();
     break;
   }
   BSP_LCD_SetFont(&Font12);
@@ -646,95 +640,50 @@ uint8_t Display_sourcecapa_menu_exec(void)
 {
   USBPD_SNKRDO_TypeDef rdo;
   USBPD_PDO_TypeDef  pdo;
-  uint32_t voltage, allowablepower, size;
-  uint32_t snkpdolist[USBPD_MAX_NB_PDO];
-  USBPD_PDO_TypeDef snk_fixed_pdo;
+  USBPD_StatusTypeDef ret = USBPD_FAIL;
 
-  /* Read SNK PDO list for retrieving useful data to fill in RDO */
-  USBPD_PWR_IF_GetPortPDOs(0, USBPD_CORE_DATATYPE_SNK_PDO, (uint8_t*)&snkpdolist[0], &size);
-  /* Store value of 1st SNK PDO (Fixed) in local variable */
-  snk_fixed_pdo.d32 = snkpdolist[0];
+  // turn off load before applying new settings
+  BSP_LED_Off(LED_ORANGE);
 
-  /* selected SRC PDO */
-  pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO];
-  DBG_MSG("selected PDO %d, type=%#x\r\n", indexPDO, pdo.GenericPDO.PowerObject);
-  switch(pdo.GenericPDO.PowerObject)
-  {
-  case USBPD_CORE_PDO_TYPE_APDO :
-    voltage = voltAPDO;
-    allowablepower = 100;
-    break;
-  default:
-    voltage = 0;
-    allowablepower = 0;
-    break;
-  }
+  pdo.d32 = DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO];
+  DBG_MSG("selected PDO %u, type=%#x\r\n", indexPDO, pdo.GenericPDO.PowerObject);
 
-  /* check if the selected source PDO is matching any of the SNK PDO */
-  if (USBPD_TRUE == USBPD_DPM_SNK_EvaluateMatchWithSRCPDO(0, pdo.d32, &voltage, &allowablepower))
-  {
-    DBG_MSG("eval sccuess\r\n");
-    /* consider the current PDO as correct */
-  }
-  else
-  {
-    DBG_MSG("eval fail\r\n");
-    return(1); /* error */
-  }
-
-  if (USBPD_CORE_PDO_TYPE_APDO == pdo.GenericPDO.PowerObject)
-  {
+  if (USBPD_CORE_PDO_TYPE_APDO == pdo.GenericPDO.PowerObject) {
+    DBG_MSG("APDO %u mV\r\n", millivoltAPDO);
     rdo.d32 = 0;
-    rdo.ProgRDO.CapabilityMismatch = 0;
+    rdo.ProgRDO.OperatingCurrentIn50mAunits =
+        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO] &
+          USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+         USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
+    rdo.ProgRDO.OutputVoltageIn20mV = millivoltAPDO/20;
+    rdo.ProgRDO.UnchunkedExtendedMessage = 0;
     rdo.ProgRDO.NoUSBSuspend = 0;
-    rdo.ProgRDO.OperatingCurrentIn50mAunits = 100 / 50;
-    rdo.ProgRDO.OutputVoltageIn20mV = voltAPDO / 20;
+    rdo.ProgRDO.USBCommunicationsCapable = 0;
+    rdo.ProgRDO.CapabilityMismatch = 0;
     rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
-    BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
-    USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
-    return(0); /* ok */
-  }
-  else
-  {
+    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
+
+  } else if (USBPD_CORE_PDO_TYPE_FIXED == pdo.GenericPDO.PowerObject) {
     rdo.d32 = 0;
+    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits =
+        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO] &
+          USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
+         USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
+    rdo.FixedVariableRDO.OperatingCurrentIn10mAunits =
+        rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits;
+    rdo.FixedVariableRDO.NoUSBSuspend = 0;
+    rdo.FixedVariableRDO.USBCommunicationsCapable = 0;
     rdo.FixedVariableRDO.CapabilityMismatch = 0;
     rdo.FixedVariableRDO.GiveBackFlag = 0;
-    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
-    rdo.FixedVariableRDO.NoUSBSuspend = 0;
     rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
-    rdo.FixedVariableRDO.USBCommunicationsCapable = snk_fixed_pdo.SNKFixedPDO.USBCommunicationsCapable;
-#if defined(USBPD_REV30_SUPPORT) && defined(_UNCHUNKED_SUPPORT)
-    if (USBPD_SPECIFICATION_REV2 < DPM_Params[0].PE_SpecRevision)
-    {
-      rdo.FixedVariableRDO.UnchunkedExtendedMessage = DPM_Settings[0].PE_PD3_Support.d.PE_UnchunkSupport;
-      fixed_pdo.d32 = DPM_Ports[0].DPM_ListOfRcvSRCPDO[0];
-      DPM_Params[0].PE_UnchunkSupport   = USBPD_FALSE;
-      /* Set unchuncked bit if supported by port partner;*/
-      if (USBPD_TRUE == fixed_pdo.SRCFixedPDO.UnchunkedExtendedMessage)
-      {
-        DPM_Params[0].PE_UnchunkSupport   = USBPD_TRUE;
-      }
-    }
-#endif /* USBPD_REV30_SUPPORT && _UNCHUNKED_SUPPORT */
-
-    DBG_MSG("FIXED RDO\r\n");
-    if ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[indexPDO] & USBPD_PDO_TYPE_Msk) == USBPD_PDO_TYPE_FIXED)
-    {
-      BSP_LED_Off(LED_ORANGE); /* shutdown the output before voltage change */
-
-      if( USBPD_OK == USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition, voltage))
-      {
-        return(0); /* ok */
-      }
-      else
-      {
-        return(1); /* error */
-      }
-    }
-    else
-    {
-      return(1); /* error */
-    }
+    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_FIXED);
+    // USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition,
+    // voltage);
+  }
+  if (ret == USBPD_OK) {
+    DBG_MSG("successfully applied\r\n");
+  }else{
+    ERR_MSG("failed with %d\r\n", ret);
   }
 }
 
@@ -744,24 +693,26 @@ uint8_t Display_sourcecapa_menu_exec(void)
   * @param  Nav (up, down, left, right)
   * @retval None
   */
-static void Display_menunav_info(uint8_t MenuSel, uint8_t Nav)
+static DEMO_MENU Display_menunav_info(uint8_t MenuSel, uint8_t Nav)
 {
+  DEMO_MENU ret = MENU_INVALID;
   BSP_LCD_SetFont(&Font12);
   switch(MenuSel)
   {
   default :
     break;
   case MENU_MEASURE :
-    Display_measure_menu_nav(Nav);
+    ret = Display_measure_menu_nav(Nav);
     break;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
-    Display_sourcecapa_menu_nav(Nav);
+    ret = Display_sourcecapa_menu_nav(Nav);
     break;
-  case MENU_PPS_ADJUST :
-    Display_PPS_menu_nav(Nav);
+  case MENU_VOLT_ADJUST :
+    ret = Display_adj_menu_nav(Nav);
     break;
   }
   BSP_LCD_SetFont(&Font12);
+  return ret;
 }
 
 /**
@@ -775,9 +726,12 @@ static DEMO_MENU Display_menuexec_info(uint8_t MenuSel)
   {
   default :
     break;
+  case MENU_MEASURE:
+    return MENU_SELECT_SOURCECAPA;
   case MENU_SELECT_SOURCECAPA : /* Display menu source capa */
-  case MENU_PPS_ADJUST:
     Display_sourcecapa_menu_exec();
+    return MENU_MEASURE;
+  case MENU_VOLT_ADJUST:
     return MENU_MEASURE;
   }
   return MENU_INVALID;
@@ -824,13 +778,15 @@ static void DEMO_Manage_event(uint32_t Event)
       case DEMO_MMI_ACTION_LEFT_PRESS:
       case DEMO_MMI_ACTION_UP_PRESS:
       case DEMO_MMI_ACTION_DOWN_PRESS:
-        Display_menunav_info(_tab_menu_val, Event & DEMO_MMI_ACTION_Msk);
+        {
+          DEMO_MENU next_menu = Display_menunav_info(_tab_menu_val, Event & DEMO_MMI_ACTION_Msk);
+          if (next_menu != MENU_INVALID && _tab_menu_val != next_menu) { /* If action successfull */
+            _tab_menu_val = next_menu;
+            Display_menuupdate_info(_tab_menu_val);
+          }
+        }
         break;
       case DEMO_MMI_ACTION_SEL_PRESS:
-        _tab_menu_val = Menu_manage_next(_tab_menu_val);
-        Display_menuupdate_info(_tab_menu_val);
-        break;
-      case DEMO_MMI_ACTION_SEL_LONGPRESS:
         {
           DEMO_MENU next_menu = Display_menuexec_info(_tab_menu_val);
           if (next_menu != MENU_INVALID) { /* If action successfull */
@@ -838,6 +794,8 @@ static void DEMO_Manage_event(uint32_t Event)
             Display_menuupdate_info(_tab_menu_val);
           }
         }
+        break;
+      case DEMO_MMI_ACTION_SEL_LONGPRESS:
         break;
       }
     }
