@@ -27,6 +27,7 @@
 #include "stm32g0xx_ll_ucpd.h"
 #include "usbpd_hw.h"
 #include "demo_disco.h"
+#include "ucdc.h"
 #include "string.h"
 #include "common.h"
 #include "cmsis_os.h"
@@ -368,65 +369,72 @@ static void Menu_manage_selection(uint8_t IndexMax, uint8_t LineMax, uint8_t *St
 
 static DEMO_MENU Display_adj_menu_nav(uint8_t Nav)
 {
+  const int16_t adjustment_value[] = {
+    100,
+    10,
+    2, // minimum granularity of PPS is 20mV
+  };
+  const char* const cursor[] = {
+    " ^      ",
+    "   ^    ",
+    "    ^   ",
+  };
+  static uint8_t adjustment_digit = 0;
+  static uint32_t _cur_mv = 0;
   uint8_t _str[30];
-  uint8_t _max = DPM_Ports[0].DPM_NumberOfRcvSRCPDO;
-  uint8_t _start, _end, _pos = 0;
+  uint16_t new_centivolt = 0;
 
-  if(Nav == DEMO_MMI_ACTION_LEFT_PRESS)
-    return MENU_MEASURE;
+  if(!_cur_mv)
+    _cur_mv = millivoltAPDO; // set to currently applied value
 
-  uint32_t volt_range_low = USBPD_BOARD_MAX_VOLTAGE_MV,
-           volt_range_high = USBPD_BOARD_MIN_VOLTAGE_MV;
-
-  for (int8_t index = 0; index < _max; index++) {
-    switch (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk) {
-    case USBPD_PDO_TYPE_APDO: {
-      uint32_t minvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
-                              USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
-                             USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos) *
-                            100;
-      uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
-                              USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
-                             USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos) *
-                            100;
-      uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
-                              USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
-                             USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos) *
-                            50;
-      sprintf((char *)_str, "A:%2d.%1d-%2d.%1dV %d.%dA",
-              (int)(minvoltage / 1000), (int)(minvoltage / 100) % 10,
-              (int)(maxvoltage / 1000), (int)(maxvoltage / 100) % 10,
-              (int)(maxcurrent / 1000), (int)((maxcurrent % 1000) / 100));
-      if(minvoltage < volt_range_low)
-        volt_range_low = minvoltage;
-      if(maxvoltage > volt_range_high)
-        volt_range_high = maxvoltage;
-      BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
-    } break;
-    default:
-      break;
+  if(Nav == DEMO_MMI_ACTION_LEFT_PRESS) {
+    if(adjustment_digit == 0)
+    {
+      _cur_mv = 0;
+      return MENU_MEASURE;
     }
+    else
+      adjustment_digit--;
+
+  }else if(Nav == DEMO_MMI_ACTION_RIGHT_PRESS) {
+    if(adjustment_digit == 2){
+
+      // turn off load before applying new settings
+      BSP_LED_Off(LED_ORANGE);
+      USBPD_StatusTypeDef status = UCDC_Request_Output(indexPDO, _cur_mv / 10); // apply settings
+      if(status == USBPD_OK)
+        millivoltAPDO = _cur_mv;
+  
+      _cur_mv = 0;
+      adjustment_digit = 0;
+      return MENU_MEASURE;
+    }
+    else
+      adjustment_digit++;
+
+  }else if(Nav == DEMO_MMI_ACTION_UP_PRESS) {
+    new_centivolt = UCDC_Search_Next_Voltage(
+      _cur_mv/10 + adjustment_value[adjustment_digit], 1, &indexPDO);
+
+  }else if(Nav == DEMO_MMI_ACTION_DOWN_PRESS) {
+    new_centivolt = UCDC_Search_Next_Voltage(
+      _cur_mv/10 - adjustment_value[adjustment_digit], 0, &indexPDO);
+  }
+  if(new_centivolt != 0) // valid value
+  {
+    _cur_mv = new_centivolt * 10;
   }
 
-  if(volt_range_high < volt_range_low) {
-    ERR_MSG("Invalid APOD range\r\n");
-  } else {
-    DBG_MSG("%2d.%1d-%2d.%1dV\r\n", volt_range_low, volt_range_high);
-    sprintf((char *)_str, "Range: %2d.%1d-%2d.%1dV", volt_range_low, volt_range_high);
-    BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
-  }
+  BSP_LCD_SetFont(&Font20);
+  sprintf((char *)str, "%2d.%02d  V", (int)_cur_mv/1000, (int)_cur_mv%1000/10);
+  BSP_LCD_DisplayStringAt(0,0*16+10, (uint8_t *)str, CENTER_MODE);
+  strcpy((char *)str, cursor[adjustment_digit]);
+  BSP_LCD_DisplayStringAt(0,1*16+10, (uint8_t *)str, CENTER_MODE);
   return MENU_INVALID;
 }
 
 static void Display_adj_menu(void)
 {
-  /* Display menu source APDO */
-  {
-    uint8_t _str[20];
-    sprintf((char *)_str, "Input voltage:");
-    string_completion(_str);
-    BSP_LCD_DisplayStringAtLine(0, _str);
-  }
   Display_adj_menu_nav(DEMO_MMI_ACTION_NONE);
 }
 
@@ -648,38 +656,7 @@ uint8_t Display_sourcecapa_menu_exec(void)
   pdo.d32 = DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO];
   DBG_MSG("selected PDO %u, type=%#x\r\n", indexPDO, pdo.GenericPDO.PowerObject);
 
-  if (USBPD_CORE_PDO_TYPE_APDO == pdo.GenericPDO.PowerObject) {
-    DBG_MSG("APDO %u mV\r\n", millivoltAPDO);
-    rdo.d32 = 0;
-    rdo.ProgRDO.OperatingCurrentIn50mAunits =
-        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO] &
-          USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
-         USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
-    rdo.ProgRDO.OutputVoltageIn20mV = millivoltAPDO/20;
-    rdo.ProgRDO.UnchunkedExtendedMessage = 0;
-    rdo.ProgRDO.NoUSBSuspend = 0;
-    rdo.ProgRDO.USBCommunicationsCapable = 0;
-    rdo.ProgRDO.CapabilityMismatch = 0;
-    rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
-    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_APDO);
-
-  } else if (USBPD_CORE_PDO_TYPE_FIXED == pdo.GenericPDO.PowerObject) {
-    rdo.d32 = 0;
-    rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits =
-        ((DPM_Ports[USBPD_PORT_0].DPM_ListOfRcvSRCPDO[indexPDO] &
-          USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >>
-         USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos);
-    rdo.FixedVariableRDO.OperatingCurrentIn10mAunits =
-        rdo.FixedVariableRDO.MaxOperatingCurrent10mAunits;
-    rdo.FixedVariableRDO.NoUSBSuspend = 0;
-    rdo.FixedVariableRDO.USBCommunicationsCapable = 0;
-    rdo.FixedVariableRDO.CapabilityMismatch = 0;
-    rdo.FixedVariableRDO.GiveBackFlag = 0;
-    rdo.FixedVariableRDO.ObjectPosition = indexPDO + 1;
-    ret = USBPD_PE_Send_Request(0, rdo.d32, USBPD_CORE_PDO_TYPE_FIXED);
-    // USBPD_DPM_RequestMessageRequest(0, rdo.GenericRDO.ObjectPosition,
-    // voltage);
-  }
+  ret = UCDC_Request_Output(indexPDO, millivoltAPDO/10);
   if (ret == USBPD_OK) {
     DBG_MSG("successfully applied\r\n");
   }else{
@@ -926,6 +903,7 @@ static void DEMO_Manage_event(uint32_t Event)
 
 void DEMO_Task_Standalone(void const *arg)
 {
+  millivoltAPDO = 5000; // 5V output on start
   Display_pd_spec_menu();
 
   xTimers = xTimerCreate(/* Just a text name, not used by the RTOS
