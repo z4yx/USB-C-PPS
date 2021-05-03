@@ -9,7 +9,6 @@
 #include "usbpd_dpm_core.h"
 #include "usbpd_hw.h"
 #include "usbpd_pwr_if.h"
-#include "usbpd_trace.h"
 
 #include <stdlib.h>
 
