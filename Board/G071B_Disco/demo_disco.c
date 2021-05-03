@@ -473,40 +473,60 @@ static void Display_sourcecapa_menu_nav(uint8_t Nav)
 {
   uint8_t _str[30];
   uint8_t _max = 0;
-  uint8_t _start, _end, _pos = 0, _i_fixed_pdo = 0;
+  uint8_t _start, _end, _pos = 0, _i_pdo = 0;
 
   for(int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++)
-    if (USBPD_PDO_TYPE_FIXED == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
+    if (USBPD_PDO_TYPE_FIXED == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk) ||
+      USBPD_PDO_TYPE_APDO == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk)
+    )
       _max++;
 
   Menu_manage_selection(_max, MAX_LINE_PDO, &_start, &_end, Nav);
 
   for (int8_t index = 0; index < DPM_Ports[0].DPM_NumberOfRcvSRCPDO; index++) {
 
-    if (USBPD_PDO_TYPE_FIXED != (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
-      continue;
-
-    if(_start <= _i_fixed_pdo && _i_fixed_pdo < _end)
+    if(USBPD_PDO_TYPE_FIXED == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
     {
       uint32_t maxcurrent = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_MAX_CURRENT_Msk) >> USBPD_PDO_SRC_FIXED_MAX_CURRENT_Pos)*10;
       uint32_t maxvoltage = ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_SRC_FIXED_VOLTAGE_Msk) >> USBPD_PDO_SRC_FIXED_VOLTAGE_Pos)*50;
-      sprintf((char*)_str, "FIXED:%2dV %2d.%dA", (int)(maxvoltage/1000), (int)(maxcurrent/1000), (int)((maxcurrent % 1000) /100));
+      sprintf((char*)_str, "     % 2luV    %lu.%luA", maxvoltage/1000, maxcurrent/1000, (maxcurrent % 1000 /100));
+    }
+    else if(USBPD_PDO_TYPE_APDO == (DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] & USBPD_PDO_TYPE_Msk))
+    {
+      uint32_t maxcurrent =
+          50 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                USBPD_PDO_SRC_APDO_MAX_CURRENT_Msk) >>
+               USBPD_PDO_SRC_APDO_MAX_CURRENT_Pos);
+      uint32_t minvoltage =
+          100 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                 USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Msk) >>
+                USBPD_PDO_SRC_APDO_MIN_VOLTAGE_Pos);
+      uint32_t maxvoltage =
+          100 * ((DPM_Ports[0].DPM_ListOfRcvSRCPDO[index] &
+                 USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Msk) >>
+                USBPD_PDO_SRC_APDO_MAX_VOLTAGE_Pos);
+      sprintf((char*)_str, "% 2lu.%luV~% 2lu.%luV %lu.%luA", minvoltage/1000, (minvoltage % 1000 /100), maxvoltage/1000, (maxvoltage % 1000 /100), maxcurrent/1000, (maxcurrent % 1000 /100));
 
-      if ((_i_fixed_pdo - _start) == g_tab_menu_pos) {
+    }
+    else continue;
+  
+    if(_start <= _i_pdo && _i_pdo < _end)
+    {
+      if ((_i_pdo - _start) == g_tab_menu_pos) {
         BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
         BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
       }
       string_completion(_str);
       BSP_LCD_DisplayStringAtLine(1 + _pos++, (uint8_t *)_str);
 
-      if ((_i_fixed_pdo - _start) == g_tab_menu_pos) {
+      if ((_i_pdo - _start) == g_tab_menu_pos) {
         BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
         BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
 
         indexPDO = index;
       }
     }
-    _i_fixed_pdo++;
+    _i_pdo++;
 
   }
 }
