@@ -6,6 +6,10 @@ This USB-C to DC adapter utilizes the USB Power Delivery protocol that turns you
 
 If the charger has PD 3.0 PPS feature, the output voltage can be adjusted in the unit of 20mV within the APDO range. Otherwise, only fixed voltages announced by the charger (PDOs) can be selected.
 
+## Usage
+
+![Usage](Docs/instructions.png)
+
 ## Hardware
 
 The STM32G071 MCU controls all the communications and user interactions. Complete hardware design files are in the `Schematics` folder.
